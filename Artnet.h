@@ -26,7 +26,7 @@ THE SOFTWARE.
 #define ARTNET_H
 //#define CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM  64
 #include <Arduino.h>
-#include "FastLED.h"
+//#include "FastLED.h"
 #if defined(ARDUINO_SAMD_ZERO)
 #include <WiFi101.h>
 #include <WiFiUdp.h>
@@ -49,7 +49,7 @@ THE SOFTWARE.
 #define ART_DMX 0x5000
 #define ART_SYNC 0x5200
 // Buffers
-#define MAX_BUFFER_ARTNET 530
+#define MAX_BUFFER_ARTNET 600
 // Packet
 #define ART_NET_ID "Art-Net\0"
 #define ART_DMX_START 18
@@ -97,16 +97,22 @@ class Artnet
 public:
   Artnet();
     uint32_t getsync();
-    CRGB * getframe();
+  bool running=false;
+     uint8_t * getframe(int framenumber);
+    uint8_t * getframe();
+    uint16_t nbframeread;
+    uint16_t frameslues=0;
+    uint16_t lostframes=0;
     void resetsync();
-    void setframe(CRGB *frame);
+    //void setframe(CRGB * frame);
   void begin(byte mac[], byte ip[]);
    void begin();
-    void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses);
+    void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses,uint8_t buffernumber);
   void setBroadcast(byte bc[]);
   uint16_t read();
   void printPacketHeader();
   void printPacketContent();
+    void stop();
     
  uint32_t sync=0;
     uint32_t syncmax=0;
@@ -163,11 +169,15 @@ private:
     EthernetUDP Udp;
   #endif
   struct artnet_reply_s ArtPollReply;
-
+    
     uint16_t nbPixelsPerUniverse;
     uint16_t nbPixels;
     uint16_t nbNeededUniverses;
-  CRGB *artnetleds;
+  uint8_t *artnetleds1;
+    uint8_t *artnetleds2;
+    uint8_t *artnetleds3;
+    uint8_t *currentframe;
+    uint8_t *frames[10];
   uint8_t artnetPacket[MAX_BUFFER_ARTNET];
   uint16_t packetSize;
   IPAddress broadcast;
@@ -175,6 +185,9 @@ private:
   uint8_t sequence;
   uint16_t incomingUniverse;
   uint16_t dmxDataLength;
+    uint8_t currentframenumber;
+    uint8_t buffernum;
+    uint8_t readbuffer;
   IPAddress remoteIP;
   void (*artDmxCallback)(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data, IPAddress remoteIP);
   void (*artSyncCallback)(IPAddress remoteIP);
