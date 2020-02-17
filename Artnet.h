@@ -49,7 +49,7 @@ THE SOFTWARE.
 #define ART_DMX 0x5000
 #define ART_SYNC 0x5200
 // Buffers
-#define MAX_BUFFER_ARTNET 600
+#define MAX_BUFFER_ARTNET 800
 // Packet
 #define ART_NET_ID "Art-Net\0"
 #define ART_DMX_START 18

@@ -142,11 +142,12 @@ void Artnet::setBroadcast(byte bc[])
 uint16_t Artnet::read()
 {
     long timef=0;
-    sync=1;
+    sync=0;
     sync2=0;
     //Serial.printf("save framebuff:%d\n",currentframenumber);
     //currentframe=frames[currentframenumber];
     remoteIP = Udp.remoteIP();
+    
     timef=millis();
     while(sync!=syncmax or sync2!=syncmax2 )
     {
@@ -158,9 +159,11 @@ uint16_t Artnet::read()
             
   packetSize = Udp.parsePacket();
 //Serial.printf("packetsize:%d\n",packetSize);
-  
+  //      Serial.printf("remorteip:%d.%d.%d.%d.%d\n",remoteIP[0],remoteIP[1],remoteIP[2],remoteIP[3],remoteIP[4]);
+ // Serial.println("RR");
   if (packetSize <= MAX_BUFFER_ARTNET && packetSize > 0)
   {
+   //   Serial.println("RR");
       Udp.read(artnetPacket, MAX_BUFFER_ARTNET);
 
       // Check that packetID is "Art-Net" else ignore
@@ -169,8 +172,9 @@ uint16_t Artnet::read()
         if (artnetPacket[i] != ART_NET_ID[i])
           return 0;
       }*/
-    
+      
       opcode = artnetPacket[8] | artnetPacket[9] << 8;
+     // Serial.printf("opc ode:%d\n",opcode);
 
       if (opcode == ART_DMX)
       {
@@ -178,7 +182,8 @@ uint16_t Artnet::read()
         //sequence = artnetPacket[12];
         incomingUniverse = artnetPacket[14] | (artnetPacket[15] << 8);
         dmxDataLength = artnetPacket[17] | artnetPacket[16] << 8;
-          Serial.printf("receiving universe n:%d size:%d\n",incomingUniverse,dmxDataLength);
+          //Serial.printf("receiving universe n:%d\n",incomingUniverse);
+         //Serial.printf("%s\n",artnetPacket+ ART_DMX_START);
           if(nbPixelsPerUniverse*(incomingUniverse)*3<=nbPixels*3)
           {
              if(dmxDataLength>nbPixelsPerUniverse*3)
@@ -187,21 +192,19 @@ uint16_t Artnet::read()
                 }
               timef=millis();
                memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],artnetPacket + ART_DMX_START,dmxDataLength);
-            // if(incomingUniverse==0)
-             // {
-                  //Serial.println("new frame");
-               //  if((sync |sync2))
-                //      lostframes++;
-                // sync=1;
-                 // sync2=0;
-             // }
-              //else
-              //{
+             if(incomingUniverse==0)
+             {
+                  Serial.println("new frame");
+                 if((sync |sync2))
+                      lostframes++;
+                 sync=1;
+                  sync2=0;
+              }
                   if(incomingUniverse<32)
                       sync=sync  | (1<<incomingUniverse);
                   else
                       sync2=sync2  | (1<<(incomingUniverse-32));
-              //}
+              
           }
           //Serial.println(sync)
           
