@@ -29,13 +29,13 @@ THE SOFTWARE.
 //#include "FastLED.h"
 #if defined(ARDUINO_SAMD_ZERO)
 #include <WiFi101.h>
-#include <WiFiUdp.h>
+#include "UdpArtnet.h"
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
-#include <WiFiUdp.h>
+#include "UdpArtnet.h"
 #elif defined(ESP32)
 #include <WiFi.h>
-#include <WiFiUdp.h>
+#include "UdpArtnet.h"
 #else
 #include <Ethernet.h>
 #include <EthernetUdp.h>
@@ -164,7 +164,7 @@ private:
   uint8_t  node_ip_address[4];
   uint8_t  id[8];
   #if defined(ARDUINO_SAMD_ZERO) || defined(ESP8266) || defined(ESP32)
-    WiFiUDP Udp;
+    WiFiUDPArtnet Udp;
   #else
     EthernetUDP Udp;
   #endif
