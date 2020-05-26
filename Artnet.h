@@ -33,9 +33,11 @@ THE SOFTWARE.
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include "UdpArtnet.h"
+//#include "WifiUdp.h"
 #elif defined(ESP32)
 #include <WiFi.h>
 #include "UdpArtnet.h"
+//#include "WifiUdp.h"
 #else
 #include <Ethernet.h>
 #include <EthernetUdp.h>
@@ -55,7 +57,7 @@ THE SOFTWARE.
 #define ART_DMX_START 18
 
 
-static  SemaphoreHandle_t Artnet_Semaphore2 = xSemaphoreCreateBinary();
+  
 
 struct artnet_reply_s {
   uint8_t  id[8];
@@ -99,6 +101,7 @@ class Artnet
 {
 public:
   Artnet();
+    SemaphoreHandle_t Artnet_Semaphore2 = xSemaphoreCreateBinary();
     uint32_t getsync();
   bool running=false;
      uint8_t * getframe(int framenumber);
@@ -168,8 +171,8 @@ private:
   uint8_t  node_ip_address[4];
   uint8_t  id[8];
   #if defined(ARDUINO_SAMD_ZERO) || defined(ESP8266) || defined(ESP32)
-    //WiFiUDPArtnet Udp;
-    WiFiUDP Udp;
+    WiFiUDPArtnet Udp;
+    //WiFiUDP Udp;
   #else
     EthernetUDP Udp;
   #endif

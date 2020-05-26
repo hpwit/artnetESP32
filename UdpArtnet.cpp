@@ -232,6 +232,7 @@ int WiFiUDPArtnet::parsePacket(){
 int WiFiUDPArtnet::parsePacket2(){
     //if(rx_buffer)
     //  return 0;
+    //Serial.println("dans la lig");
     struct sockaddr_in si_other;
     int slen = sizeof(si_other) , len;
     /*char * buf = new char[1460];

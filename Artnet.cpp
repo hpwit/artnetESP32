@@ -141,7 +141,7 @@ void Artnet::setBroadcast(byte bc[])
 
 uint16_t Artnet::read()
 {
-    read(false);
+    return read(false);
 }
 uint16_t Artnet::read(bool give)
 {
@@ -194,6 +194,7 @@ uint16_t Artnet::read(bool give)
                     {
                         //Serial.println("*************new frame**************");
                         if((sync |sync2)){
+                           //Serial.println("lost frame");
                             frameslues++;
                             lostframes++;
                             if(readbuffer==0)
