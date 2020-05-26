@@ -54,6 +54,9 @@ THE SOFTWARE.
 #define ART_NET_ID "Art-Net\0"
 #define ART_DMX_START 18
 
+
+static  SemaphoreHandle_t Artnet_Semaphore2 = xSemaphoreCreateBinary();
+
 struct artnet_reply_s {
   uint8_t  id[8];
   uint16_t opCode;
@@ -110,6 +113,7 @@ public:
     void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses,uint8_t buffernumber);
   void setBroadcast(byte bc[]);
   uint16_t read();
+    uint16_t read(bool give);
   void printPacketHeader();
   void printPacketContent();
     void stop();
@@ -164,7 +168,8 @@ private:
   uint8_t  node_ip_address[4];
   uint8_t  id[8];
   #if defined(ARDUINO_SAMD_ZERO) || defined(ESP8266) || defined(ESP32)
-    WiFiUDPArtnet Udp;
+    //WiFiUDPArtnet Udp;
+    WiFiUDP Udp;
   #else
     EthernetUDP Udp;
   #endif
