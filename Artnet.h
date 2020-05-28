@@ -42,7 +42,7 @@ THE SOFTWARE.
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #endif
-
+#include <Udp.h>
 // UDP specific
 #define ART_NET_PORT 6454
 // Opcodes
@@ -56,7 +56,11 @@ THE SOFTWARE.
 #define ART_NET_ID "Art-Net\0"
 #define ART_DMX_START 18
 
+#include "freertos/queue.h"
+#include "soc/timer_group_struct.h"
+#include "soc/timer_group_reg.h"
 
+//static QueueHandle_t _artnet_queue;
   
 
 struct artnet_reply_s {
@@ -106,9 +110,9 @@ public:
   bool running=false;
      uint8_t * getframe(int framenumber);
     uint8_t * getframe();
-    uint16_t nbframeread;
-    uint16_t frameslues=0;
-    uint16_t lostframes=0;
+    uint32_t nbframeread;
+    uint32_t frameslues=0;
+    uint32_t lostframes=0;
     void resetsync();
     //void setframe(CRGB * frame);
   void begin(byte mac[], byte ip[]);

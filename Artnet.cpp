@@ -23,6 +23,8 @@
  */
 
 #include <Artnet.h>
+#include <lwip/sockets.h>
+#include <lwip/netdb.h>
 
 Artnet::Artnet() {}
 
@@ -90,13 +92,8 @@ void Artnet::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses,uint8_t buffe
     readbuffer=buffernumber-1;
     
     
-    artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
-    if(artnetleds1==NULL)
-    {
-        Serial.printf("impossible to create the buffer\n");
-        return;
-        
-    }
+   
+
     running=true;
     nbPixels=nbpixels;
     nbPixelsPerUniverse=nbpixelsperuniverses;
@@ -104,6 +101,14 @@ void Artnet::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses,uint8_t buffe
     if(nbNeededUniverses*nbPixelsPerUniverse-nbPixels<0) {
         
         nbNeededUniverses++;
+    }
+     //artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
+    artnetleds1= (uint8_t *)malloc(nbpixelsperuniverses*nbNeededUniverses*buffernumber*3);
+    if(artnetleds1==NULL)
+    {
+        Serial.printf("impossible to create the buffer\n");
+        return;
+        
     }
     Serial.printf("Starting Artnet nbNee sdedUniverses:%d\n",nbNeededUniverses);
     
@@ -138,71 +143,80 @@ void Artnet::setBroadcast(byte bc[])
     //sets the broadcast address
     broadcast = bc;
 }
-
+/*
 uint16_t Artnet::read()
 {
     return read(false);
-}
-uint16_t Artnet::read(bool give)
+}*/
+
+
+uint16_t Artnet::read()
 {
     long timef=0;
     sync=0;
     sync2=0;
+    struct sockaddr_in si_other;
+    int slen = sizeof(si_other) , len;
     //Serial.printf("save framebuff:%d\n",currentframenumber);
     //currentframe=frames[currentframenumber];
-    remoteIP = Udp.remoteIP();
+    //remoteIP = Udp.remoteIP();
     
     timef=millis();
     while(sync!=syncmax or sync2!=syncmax2 )
     {
-        if(millis()-timef>1000)
+       if(millis()-timef>1000)
         {
             Serial.println("Time out fired");
             return 0;
         }
         
-        packetSize = Udp.parsePacket2();
+        //packetSize = Udp.parsePacket2();
+        
+        /*char * buf = new char[1460];
+         if(!buf){
+         return 0;
+         }*/
+        if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+       // {
+         //   return 0;
+        //}
         //Serial.printf("packetsize:%d\n",packetSize);
         //      Serial.printf("remorteip:%d.%d.%d.%d.%d\n",remoteIP[0],remoteIP[1],remoteIP[2],remoteIP[3],remoteIP[4]);
         // Serial.println("RR");
-        if (packetSize <= MAX_BUFFER_ARTNET && packetSize > 0)
+        //else // ( packetSize > 0)
         {
-            opcode = Udp.udpBuffer[8] | (Udp.udpBuffer[9] << 8);//artnetPacket[8] | artnetPacket[9] << 8;
+            //opcode = Udp.udpBuffer[8] | (Udp.udpBuffer[9] << 8);//artnetPacket[8] | artnetPacket[9] << 8;
             // Serial.printf("opc ode:%d\n",opcode);
             
-            if (opcode == ART_DMX)
-            {
+           // if (opcode == ART_DMX)
+            //{
                 
                 //sequence = artnetPacket[12];
                 incomingUniverse = Udp.udpBuffer[14] | (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
-                dmxDataLength = Udp.udpBuffer[17] | Udp.udpBuffer[16] << 8; //artnetPacket[17] | artnetPacket[16] << 8;
+               // dmxDataLength = Udp.udpBuffer[17] | Udp.udpBuffer[16] << 8; //artnetPacket[17] | artnetPacket[16] << 8;
                 //Serial.printf("receiving universe n:%d size:%d\n",incomingUniverse,dmxDataLength);
                 //Serial.printf("%s\n",artnetPacket+ ART_DMX_START);
                 
                 
-                if(nbPixelsPerUniverse*(incomingUniverse)*3<=nbPixels*3)
-                {
-
+                //if(incomingUniverse<nbNeededUniverses)//if(nbPixelsPerUniverse*(incomingUniverse)*3<=nbPixels*3)
+                //{
+                    /*
                     if(dmxDataLength>nbPixelsPerUniverse*3)
                     {
                         dmxDataLength= nbPixelsPerUniverse*3;
-                    }
+                    }*/
                     timef=millis();
-                     memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,dmxDataLength);
+                   //  memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
                     //+currentframenumber*nbPixels*3
-                    if(incomingUniverse==0)
+                   if(incomingUniverse==0)
                     {
                         //Serial.println("*************new frame**************");
-                        if((sync |sync2)){
-                           //Serial.println("lost frame");
-                            frameslues++;
+                        if(sync |sync2){
+                           
+                           // frameslues++;
                             lostframes++;
-                            if(readbuffer==0)
-                                readbuffer=buffernum-1;
-                            else
-                                readbuffer-=1;
-                            if(give)
-                                xSemaphoreGive(Artnet_Semaphore2);
+                            //if(give)
+                             //  xSemaphoreGive(Artnet_Semaphore2);
                         }
                         sync=1;
                         sync2=0;
@@ -214,9 +228,9 @@ uint16_t Artnet::read(bool give)
                             sync2=sync2  | (1<<(incomingUniverse-32));
                     }
                     
-                }
+                //}
                 
-            }
+            //}
             
         }
 
@@ -226,11 +240,13 @@ uint16_t Artnet::read(bool give)
     /* if((int)(frameslues/buffernum)>(int)(nbframeread/buffernum) and (frameslues%buffernum > nbframeread%buffernum))
      depassment++;*/
     frameslues++;
-    currentframenumber=(currentframenumber+1)%buffernum;
-    sync=0;
-    sync2=0;
+    currentframenumber=(currentframenumber+1)%2;
+    //xSemaphoreGive(Artnet_Semaphore2);
+    //sync=0;
+    //sync2=0;
+    /*
     if(give)
-        xSemaphoreGive(Artnet_Semaphore2);
+        xSemaphoreGive(Artnet_Semaphore2);*/
     return 1;
 }
 

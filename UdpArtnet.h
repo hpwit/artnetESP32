@@ -51,7 +51,7 @@
 
 class WiFiUDPArtnet: public UDP {
 private:
-    int udp_server; //switch to public instead of private
+    //switch to public instead of private
     IPAddress multicast_ip;
     IPAddress remote_ip;
     uint16_t server_port;
@@ -60,7 +60,7 @@ private:
     size_t tx_buffer_len;
     cbuf * rx_buffer;
 public:
-    
+    int udp_server; 
     WiFiUDPArtnet();
     ~WiFiUDPArtnet();
     uint8_t begin(IPAddress a, uint16_t p);

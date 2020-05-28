@@ -239,7 +239,8 @@ int WiFiUDPArtnet::parsePacket2(){
      if(!buf){
      return 0;
      }*/
-    if ((len = recvfrom(udp_server, udpBuffer, 1460, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) == -1){
+    if ((len = recvfrom(udp_server, udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) == -1) //1460
+    {
         //delete[] buf;
         if(errno == EWOULDBLOCK){
             return 0;
@@ -247,8 +248,8 @@ int WiFiUDPArtnet::parsePacket2(){
         log_e("could not receive data: %d", errno);
         return 0;
     }
-    remote_ip = IPAddress(si_other.sin_addr.s_addr);
-    remote_port = ntohs(si_other.sin_port);
+    //remote_ip = IPAddress(si_other.sin_addr.s_addr);
+    //remote_port = ntohs(si_other.sin_port);
     /*  if (len > 0) {
      // rx_buffer = new cbuf(len);
      //rx_buffer->write(buf, len);
