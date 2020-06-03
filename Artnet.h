@@ -105,11 +105,15 @@ class Artnet
 {
 public:
   Artnet();
+    static void artnet_task(void *pvParameters);
     SemaphoreHandle_t Artnet_Semaphore2 = xSemaphoreCreateBinary();
+    uint16_t last_size=0;
     uint32_t getsync();
   bool running=false;
      uint8_t * getframe(int framenumber);
     uint8_t * getframe();
+    void getframe(uint8_t* leds);
+    void getframe2( uint8_t* leds);
     uint32_t nbframeread;
     uint32_t frameslues=0;
     uint32_t lostframes=0;
@@ -117,10 +121,12 @@ public:
     //void setframe(CRGB * frame);
   void begin(byte mac[], byte ip[]);
    void begin();
-    void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses,uint8_t buffernumber);
+    void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses);
   void setBroadcast(byte bc[]);
   uint16_t read();
-    uint16_t read(bool give);
+     uint16_t read2();
+    uint16_t read2(TaskHandle_t task);
+    uint16_t read(TaskHandle_t task);
   void printPacketHeader();
   void printPacketContent();
     void stop();
