@@ -114,6 +114,7 @@ public:
     uint8_t * getframe();
     void getframe(uint8_t* leds);
     void getframe2( uint8_t* leds);
+    void getframe3( uint8_t* leds);
     uint32_t nbframeread;
     uint32_t frameslues=0;
     uint32_t lostframes=0;
@@ -135,7 +136,10 @@ public:
     uint32_t syncmax=0;
     uint32_t sync2=0;
     uint32_t syncmax2=0;
-
+    uint32_t elaspe[2];
+    uint32_t start_time=0;
+    uint32_t current_time=0;
+    uint32_t getElaspseTime();
   // Return a pointer to the start of the DMX data
   inline uint8_t* getDmxFrame(void)
   {
