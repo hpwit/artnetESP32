@@ -107,7 +107,7 @@ void Artnet::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses)
         nbNeededUniverses++;
     }
      //artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
-    artnetleds1= (uint8_t *)malloc( (nbpixelsperuniverses*3+ART_DMX_START)*nbNeededUniverses*2 );
+    artnetleds1= (uint8_t *)malloc( (nbpixelsperuniverses*3+ART_DMX_START)*nbNeededUniverses*2 +8);
     if(artnetleds1==NULL)
     {
         Serial.printf("impossible to create the buffer\n");
@@ -186,7 +186,10 @@ void Artnet::getframe3(uint8_t* leds)
     nbframeread++;
 }
 
-
+uint8_t * Artnet::getframeread(int buffer)
+{
+    return artnetleds1+(buffer%2)*(nbPixelsPerUniverse*3*nbNeededUniverses)+(buffer%2+1)*4;
+}
 void Artnet::getframe2(uint8_t* leds)
 {
     uint32_t size=nbPixelsPerUniverse*3;
@@ -229,11 +232,18 @@ uint16_t Artnet::read2()
     uint32_t decal2=nbNeededUniverses*decal;
     uint8_t * offset;
      bool resetframe=true;
+    
     er:
+    timef=millis();
     offset=artnetleds1+currentframenumber*decal2;
  
     while(incomingUniverse!=0)
     {
+        if(millis()-timef>1000)
+        {
+            Serial.println("Time out fired");
+            return 0;
+        }
         if ((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
         {
              
@@ -255,7 +265,14 @@ uint16_t Artnet::read2()
     for(int uni=1;uni<nbNeededUniverses;uni++)
     {
         offset+=decal;
-        while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0);
+        while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+            {
+                if(millis()-timef>1000)
+                {
+                    Serial.println("Time out fired");
+                    return 0;
+                }
+            }
         incomingUniverse = *(offset+14);
                 if(incomingUniverse!=uni)
                 {
@@ -295,7 +312,7 @@ uint16_t Artnet::read2(TaskHandle_t task)
     uint8_t *offset2=artnetleds1;
     offset2+=currentframenumber*decal2;
     uint8_t * offset;
-   
+   timef=millis();
     for(;;){
   
         er:
@@ -306,6 +323,11 @@ uint16_t Artnet::read2(TaskHandle_t task)
             
         while(incomingUniverse!=0)
         {
+            if(millis()-timef>1000)
+            {
+                Serial.println("Time out fired");
+                return 0;
+            }
             if ((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
             {
                 
@@ -313,12 +335,20 @@ uint16_t Artnet::read2(TaskHandle_t task)
                
                     
             }
+
         }
 
         for(int uni=1;uni<nbNeededUniverses;uni++)
         {
             offset+=decal;
-            while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0);
+            while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+            {
+                if(millis()-timef>1000)
+                {
+                    Serial.println("Time out fired");
+                    return 0;
+                }
+            }
             incomingUniverse = *(offset+14);
                     if(incomingUniverse!=uni)
                     {

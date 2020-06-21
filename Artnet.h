@@ -115,6 +115,7 @@ public:
     void getframe(uint8_t* leds);
     void getframe2( uint8_t* leds);
     void getframe3( uint8_t* leds);
+    uint8_t * getframeread(int buffer);
     uint32_t nbframeread;
     uint32_t frameslues=0;
     uint32_t lostframes=0;
