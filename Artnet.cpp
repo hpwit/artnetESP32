@@ -47,7 +47,7 @@ uint8_t * Artnet::getframe(int framenumber)
      else*/
     return NULL;
 }
- void Artnet::getframe(uint8_t* leds)
+void Artnet::getframe(uint8_t* leds)
 {
     memcpy(leds,&artnetleds1[((currentframenumber+1)%2)*nbPixels*3],nbPixels*3);
 }
@@ -96,8 +96,8 @@ void Artnet::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses)
     readbuffer=2-1;
     
     
-   
-
+    
+    
     running=true;
     nbPixels=nbpixels;
     nbPixelsPerUniverse=nbpixelsperuniverses;
@@ -106,7 +106,7 @@ void Artnet::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses)
         
         nbNeededUniverses++;
     }
-     //artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
+    //artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
     artnetleds1= (uint8_t *)malloc( (nbpixelsperuniverses*3+ART_DMX_START)*nbNeededUniverses*2 +8);
     if(artnetleds1==NULL)
     {
@@ -137,6 +137,9 @@ void Artnet::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses)
     last_size=(nbpixels%nbpixelsperuniverses)*3;
     if(last_size==0)
         last_size=nbpixelsperuniverses*3;
+    //create the task for the display
+    xTaskCreatePinnedToCore(Artnet::afterFrameTask, "afterFrameTask", 3000, this,1, &artnetAfterFrameHandle, 0);
+    xTaskCreatePinnedToCore(Artnet::readFromSDTask, "readFromSDTask", 3000, this,1, &readFromSDHandle, 0);
     
     Udp.begin(ART_NET_PORT);
 }
@@ -153,60 +156,131 @@ void Artnet::setBroadcast(byte bc[])
 
 
 /*
-uint16_t Artnet::artnet_task(void *pvParameters)
+ uint16_t Artnet::artnet_task(void *pvParameters)
+ {
+ for(;;)
+ {
+ 
+ }
+ }
+ */
+
+
+//void Artnet::getFramedRecord()
+//{
+//    uint32_t size=nbPixelsPerUniverse*3;
+//    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
+//    uint32_t decal2=nbNeededUniverses*decal;
+//    // uint8_t * udpof=Udp.udpBuffer + ART_DMX_START;
+//    uint8_t * offset;
+//    uint8_t * leds=artnetleds1+(nbframeread%2)*decal2;
+//    memmove(leds,&elaspe[nbframeread%2],4);
+//    leds+=4;
+//    offset=artnetleds1+(nbframeread%2)*decal2+ART_DMX_START;
+//
+//    if(nbNeededUniverses>1)
+//    {
+//        for(int uni=0;uni<nbNeededUniverses-1;uni++)
+//        {
+//            memmove(leds,offset,size);
+//            offset+=decal;
+//            leds+=size;
+//        }
+//    }
+//    memmove(leds,offset,last_size);
+//    if(recordfile)
+//        recordfile.write(leds,nbPixels*3+4);
+//    if(ledsbuffer)
+//        memcpy(ledsbuffer,leds+4,nbPixels*3);
+//    nbframeread++;
+//}
+
+
+bool Artnet::readNextFrameAndWait(File playingfile)
 {
-    for(;;)
+    if(playingfile.available()>0)
+    {
+        uint32_t waitnewtframe=0;
+        playingfile.read(getframeread(buffer_read),nbPixels*3+4);
+        waitnewtframe=*((uint32_t*)getframeread(buffer_read));
+        totalrecording+=waitnewtframe/240;
+        uint32_t time_now=ESP.getCycleCount();
+        uint32_t diff=(time_now-timenow);
+        if(waitnewtframe>diff)
+         delayMicroseconds((waitnewtframe-diff)/240);
+        
+        timenow=ESP.getCycleCount();
+        buffer_play=buffer_read;
+        xTaskNotifyGive(readFromSDHandle);
+        buffer_read++;
+        return true;
+    }
+    else
     {
         
+        Serial.printf("Reading done nbframes:%d totlrecord %ld ms\n",buffer_read,totalrecording/1000);
+        buffer_read=0;
+        buffer_play=0;
+        totalrecording=0;
+        return false;
     }
+    
 }
-*/
 
-void Artnet::getframe3(uint8_t* leds)
+void Artnet::getFrameForRecord(uint8_t* leds)
 {
     uint32_t size=nbPixelsPerUniverse*3;
-       uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-       uint32_t decal2=nbNeededUniverses*decal;
-      // uint8_t * udpof=Udp.udpBuffer + ART_DMX_START;
+    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
+    uint32_t decal2=nbNeededUniverses*decal;
     uint8_t * offset;
-    memcpy(leds,&elaspe[nbframeread%2],4);
-    leds+=4;
+    recordfile.write((uint8_t*)(&elaspe[nbframeread%2]),4);
     offset=artnetleds1+(nbframeread%2)*decal2+ART_DMX_START;
-    
     if(nbNeededUniverses>1)
     {
-            for(int uni=0;uni<nbNeededUniverses-1;uni++)
-            {
-                memcpy(leds,offset,size);
-                offset+=decal;
-                leds+=size;
-            }
+        for(int uni=0;uni<nbNeededUniverses-1;uni++)
+        {
+            memcpy(leds,offset,size);
+            offset+=decal;
+            leds+=size;
+        }
     }
     memcpy(leds,offset,last_size);
-    nbframeread++;
+    //For an unknown reason if you put the write here, only couple of leds are actually copied ...
+    //recordfile.write(leds,nbPixels*3);
+    
+}
+
+
+
+uint8_t * Artnet::getFrameReadSD()
+{
+    return getframeread(buffer_play)+4;
 }
 
 uint8_t * Artnet::getframeread(int buffer)
 {
-    return artnetleds1+(buffer%2)*(nbPixelsPerUniverse*3*nbNeededUniverses)+(buffer%2+1)*4;
+    return artnetleds1+(buffer%2)*(nbPixelsPerUniverse*3*nbNeededUniverses+4);
 }
-void Artnet::getframe2(uint8_t* leds)
+                      
+                      
+                      
+void Artnet::getBufferFrame(uint8_t* leds)
 {
     uint32_t size=nbPixelsPerUniverse*3;
-       uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-       uint32_t decal2=nbNeededUniverses*decal;
-      // uint8_t * udpof=Udp.udpBuffer + ART_DMX_START;
+    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
+    uint32_t decal2=nbNeededUniverses*decal;
+    // uint8_t * udpof=Udp.udpBuffer + ART_DMX_START;
     uint8_t * offset;
     offset=artnetleds1+((currentframenumber+1)%2)*decal2+ART_DMX_START;
     
     if(nbNeededUniverses>1)
     {
-            for(int uni=0;uni<nbNeededUniverses-1;uni++)
-            {
-                memcpy(leds,offset,size);
-                offset+=decal;
-                leds+=size;
-            }
+        for(int uni=0;uni<nbNeededUniverses-1;uni++)
+        {
+            memcpy(leds,offset,size);
+            offset+=decal;
+            leds+=size;
+        }
     }
     memcpy(leds,offset,last_size);
     nbframeread++;
@@ -215,7 +289,7 @@ void Artnet::getframe2(uint8_t* leds)
 uint32_t Artnet::getElaspseTime()
 {
     return elaspe[(currentframenumber+1)%2];
-
+    
     
 }
 
@@ -225,18 +299,18 @@ uint16_t Artnet::read2()
     struct sockaddr_in si_other;
     int slen = sizeof(si_other) , len;
     long timef=0;
-
+    
     //timef=millis();
     incomingUniverse=99;
     uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
     uint32_t decal2=nbNeededUniverses*decal;
     uint8_t * offset;
-     bool resetframe=true;
+    bool resetframe=true;
     
-    er:
+er:
     timef=millis();
     offset=artnetleds1+currentframenumber*decal2;
- 
+    
     while(incomingUniverse!=0)
     {
         if(millis()-timef>1000)
@@ -246,63 +320,81 @@ uint16_t Artnet::read2()
         }
         if ((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
         {
-             
+            
             incomingUniverse = offset[14] ;
         }
     }
     if(resetframe==true or frameslues==0)
     {
         current_time=ESP.getCycleCount();
-         if(frameslues==0)
-         {
-             start_time=current_time;
-         }
+        if(frameslues==0)
+        {
+            start_time=current_time;
+        }
         elaspe[currentframenumber]=(current_time-start_time);
         /*if(elaspe[currentframenumber]/240000<30)
-            Serial.printf("frame:%d time:%lu\n",frameslues,elaspe[currentframenumber]/240);*/
+         Serial.printf("frame:%d time:%lu\n",frameslues,elaspe[currentframenumber]/240);*/
         start_time=current_time;
     }
     for(int uni=1;uni<nbNeededUniverses;uni++)
     {
         offset+=decal;
         while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+        {
+            if(millis()-timef>1000)
             {
-                if(millis()-timef>1000)
-                {
-                    Serial.println("Time out fired");
-                    return 0;
-                }
+                Serial.println("Time out fired");
+                return 0;
             }
+        }
         incomingUniverse = *(offset+14);
-                if(incomingUniverse!=uni)
-                {
-                    lostframes++;
-                    resetframe=false;
-                    goto er;
-                }
+        if(incomingUniverse!=uni)
+        {
+            lostframes++;
+            resetframe=false;
+            goto er;
+        }
     }
-
     
-
-     
+    
+    
+    
     Udp.flush();
-     
     
-   
-
+    
+    
+    
     currentframenumber=(currentframenumber+1)%2;
     
     frameslues++;
+
     return 1;
 }
+
+uint16_t Artnet::readFrame()
+{
+    uint16_t result;
+    result=read2();
+    if(result==1 and artnetAfterFrameHandle)
+        xTaskNotifyGive(artnetAfterFrameHandle);
+    return result;
+}
+
+uint16_t Artnet::readFrameRecord()
+{
+    uint16_t result;
+    result=read2();
+    return result;
+}
+
 
 uint16_t Artnet::read2(TaskHandle_t task)
 {
     struct sockaddr_in si_other;
-        int slen = sizeof(si_other) , len;
-        long timef=0;
-     sync=0;
-       sync2=0;
+    int slen = sizeof(si_other) , len;
+    long timef=0;
+    sync=0;
+    sync2=0;
     timef=millis();
     incomingUniverse=99;
     uint32_t size=nbPixelsPerUniverse*3;
@@ -312,15 +404,15 @@ uint16_t Artnet::read2(TaskHandle_t task)
     uint8_t *offset2=artnetleds1;
     offset2+=currentframenumber*decal2;
     uint8_t * offset;
-   timef=millis();
+    timef=millis();
     for(;;){
-  
-        er:
+        
+    er:
         
         offset=offset2;//+currentframenumber*nbPixels*3;
-
+        
         //er:
-            
+        
         while(incomingUniverse!=0)
         {
             if(millis()-timef>1000)
@@ -332,12 +424,12 @@ uint16_t Artnet::read2(TaskHandle_t task)
             {
                 
                 incomingUniverse = offset[14] ;//+ Udp.udpBuffer[15];
-               
-                    
+                
+                
             }
-
+            
         }
-
+        
         for(int uni=1;uni<nbNeededUniverses;uni++)
         {
             offset+=decal;
@@ -350,109 +442,126 @@ uint16_t Artnet::read2(TaskHandle_t task)
                 }
             }
             incomingUniverse = *(offset+14);
-                    if(incomingUniverse!=uni)
-                    {
-                        lostframes++;
-                        goto er;
-                       
-                    }
+            if(incomingUniverse!=uni)
+            {
+                lostframes++;
+                goto er;
+                
+            }
         }
-
+        
         
         frameslues++;
         Udp.flush();
         currentframenumber=(currentframenumber+1)%2;
         xTaskNotifyGive(task);
-            //currentframenumber=(currentframenumber+1)%2;
-            //memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
-        }
-        
-        
-        return 1;
-}
+        //currentframenumber=(currentframenumber+1)%2;
+        //memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
+    }
     
+    
+    return 1;
+}
 
+void Artnet::setLedsBuffer(uint8_t * leds)
+{
+    ledsbuffer=leds;
+}
 
+void Artnet::startArtnetrecord(File file)
+{
+    if(stopRecord)
+    {
+        recordfile=file;
+        stopRecord=false;
+        firstframe=false;
+        xTaskCreatePinnedToCore(Artnet::recordArtnetTask, "recordArtnetTask", 3000, this,1, &recordArtnetHandle, 0);
+    }
+}
 
+void Artnet::stopArtnetRecord()
+{
+    stopRecord=true;
+}
 
+void Artnet::recordArtnetTask(void *pvParameters)
+{
+    Artnet * artnet= (Artnet*)pvParameters;
+    artnet->nbframeread=0;
+    artnet->frameslues=0;
+    artnet->lostframes=0;
+    Serial.println("Ready to record");
+    while(!artnet->stopRecord)
+    {
+        if(artnet->nbframeread<artnet->frameslues)
+        {
+            if(artnet->frameslues==1)
+            {
+                artnet->recordStartTime=millis();
+                Serial.println("First Frame recorded\n");
+            }
+            artnet->getFrameForRecord(artnet->ledsbuffer);
+           artnet->recordfile.write(artnet->ledsbuffer,artnet->nbPixels*3);
+             artnet->nbframeread++;
+            if(artnet->frameRecordCallback)
+                (*artnet->frameRecordCallback)();
+        }
+        TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE; // write enable
+        TIMERG0.wdt_feed=1;                       // feed dog
+        TIMERG0.wdt_wprotect=0;
+    }
+    artnet->recordfile.close();
+    artnet->recordEndTime=millis();
+    Serial.printf("Record stopped framesartnet:%d framesrecorded:%d  lostsframes:%d duration:%ld ms\n",artnet->frameslues,artnet->frameslues,artnet->lostframes,artnet->recordEndTime-artnet->recordStartTime);
+    
+    artnet->nbframeread=0;
+    artnet->frameslues=0;
+    artnet->lostframes=0;
+    vTaskDelete(NULL);
+}
+
+void Artnet::afterFrameTask(void *pvParameters)
+{
+    Artnet * artnet= (Artnet*)pvParameters;
+    for(;;) {
+        
+        ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+        if(artnet->ledsbuffer!=NULL)
+            artnet->getBufferFrame(artnet->ledsbuffer);
+        if (((Artnet*)pvParameters)->frameCallback)
+            (*((Artnet*)pvParameters)->frameCallback)();
+        
+    }
+}
+
+void Artnet::readFromSDTask(void *pvParameters)
+{
+  Artnet * artnet= (Artnet*)pvParameters;
+  for(;;) {
+      
+      ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+      if(artnet->ledsbuffer!=NULL)
+          memcpy(artnet->ledsbuffer,artnet->getframeread(artnet->buffer_read)+4,artnet->nbPixels*3);
+      if (((Artnet*)pvParameters)->readFromSDCallback)
+          (*((Artnet*)pvParameters)->readFromSDCallback)();
+      
+  }
+}
 
 
 uint16_t Artnet::read()
 {
-       
-        struct sockaddr_in si_other;
-        int slen = sizeof(si_other) , len;
-        long timef=0;
-        //for(;;){
-           sync=0;
-           sync2=0;
-        timef=millis();
-        while(sync!=syncmax or sync2!=syncmax2 )
-        {
-           if(millis()-timef>1000)
-            {
-                Serial.println("Time out fired");
-                return 0;
-            }
-            
-            //packetSize = Udp.parsePacket2();
-            
-            /*char * buf = new char[1460];
-             if(!buf){
-             return 0;
-             }*/
-            if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
-
-            {
-                incomingUniverse = Udp.udpBuffer[14];// | (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
-                        timef=millis();
-                
-                         memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
-                       
-                       if(incomingUniverse==0)
-                        {
-                            //Serial.println("*************new frame**************");
-                            if(sync |sync2){
-                               
-                               
-                                lostframes++;
-                                
-                            }
-                            sync=1;
-                            sync2=0;
-                        }
-                        else{
-                            if(incomingUniverse<32)
-                                sync=sync  | (1<<incomingUniverse);
-                            else
-                                sync2=sync2  | (1<<(incomingUniverse-32));
-                        }
-            }
-
-        }
-        
-        frameslues++;
-    Udp.flush();
-        //currentframenumber=(currentframenumber+1)%2;
-      //  xTaskNotifyGive(task);
-    //}
-        return 1;
-}
-
-
-uint16_t Artnet::read(TaskHandle_t task)
-{
-   
+    
     struct sockaddr_in si_other;
     int slen = sizeof(si_other) , len;
     long timef=0;
-    for(;;){
-       sync=0;
-       sync2=0;
+    //for(;;){
+    sync=0;
+    sync2=0;
     timef=millis();
     while(sync!=syncmax or sync2!=syncmax2 )
     {
-       if(millis()-timef>1000)
+        if(millis()-timef>1000)
         {
             Serial.println("Time out fired");
             return 0;
@@ -465,39 +574,102 @@ uint16_t Artnet::read(TaskHandle_t task)
          return 0;
          }*/
         if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
-
+            
         {
-            incomingUniverse = Udp.udpBuffer[14] ;//| (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
-                    timef=millis();
-                     memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
-                   
-                   if(incomingUniverse==0)
-                    {
-                        //Serial.println("*************new frame**************");
-                        if(sync |sync2){
-                           
-                           
-                            lostframes++;
-                            
-                        }
-                        sync=1;
-                        sync2=0;
-                    }
-                    else{
-                        if(incomingUniverse<32)
-                            sync=sync  | (1<<incomingUniverse);
-                        else
-                            sync2=sync2  | (1<<(incomingUniverse-32));
-                    }
+            incomingUniverse = Udp.udpBuffer[14];// | (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
+            timef=millis();
+            
+            memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
+            
+            if(incomingUniverse==0)
+            {
+                //Serial.println("*************new frame**************");
+                if(sync |sync2){
+                    
+                    
+                    lostframes++;
+                    
+                }
+                sync=1;
+                sync2=0;
+            }
+            else{
+                if(incomingUniverse<32)
+                    sync=sync  | (1<<incomingUniverse);
+                else
+                    sync2=sync2  | (1<<(incomingUniverse-32));
+            }
         }
-
+        
     }
     
     frameslues++;
-        Udp.flush();
+    Udp.flush();
     //currentframenumber=(currentframenumber+1)%2;
-    xTaskNotifyGive(task);
+    //  xTaskNotifyGive(task);
+    //}
+    return 1;
 }
+
+
+uint16_t Artnet::read(TaskHandle_t task)
+{
+    
+    struct sockaddr_in si_other;
+    int slen = sizeof(si_other) , len;
+    long timef=0;
+    for(;;){
+        sync=0;
+        sync2=0;
+        timef=millis();
+        while(sync!=syncmax or sync2!=syncmax2 )
+        {
+            if(millis()-timef>1000)
+            {
+                Serial.println("Time out fired");
+                return 0;
+            }
+            
+            //packetSize = Udp.parsePacket2();
+            
+            /*char * buf = new char[1460];
+             if(!buf){
+             return 0;
+             }*/
+            if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+                
+            {
+                incomingUniverse = Udp.udpBuffer[14] ;//| (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
+                timef=millis();
+                memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
+                
+                if(incomingUniverse==0)
+                {
+                    //Serial.println("*************new frame**************");
+                    if(sync |sync2){
+                        
+                        
+                        lostframes++;
+                        
+                    }
+                    sync=1;
+                    sync2=0;
+                }
+                else{
+                    if(incomingUniverse<32)
+                        sync=sync  | (1<<incomingUniverse);
+                    else
+                        sync2=sync2  | (1<<(incomingUniverse-32));
+                }
+            }
+            
+        }
+        
+        frameslues++;
+        Udp.flush();
+        //currentframenumber=(currentframenumber+1)%2;
+        xTaskNotifyGive(task);
+    }
     return 1;
 }
 

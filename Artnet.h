@@ -60,8 +60,12 @@ THE SOFTWARE.
 #include "soc/timer_group_struct.h"
 #include "soc/timer_group_reg.h"
 
+#include "FS.h"
+
 //static QueueHandle_t _artnet_queue;
-  
+static TaskHandle_t artnetAfterFrameHandle = 0;
+static TaskHandle_t recordArtnetHandle = 0;
+static TaskHandle_t readFromSDHandle = 0;
 
 struct artnet_reply_s {
   uint8_t  id[8];
@@ -105,16 +109,40 @@ class Artnet
 {
 public:
   Artnet();
-    static void artnet_task(void *pvParameters);
+     void (*frameCallback)();
+    void (*frameRecordCallback)();
+    void (*readFromSDCallback)();
+    static void afterFrameTask(void *pvParameters);
+    static void recordArtnetTask(void *pvParameters);
+     static void readFromSDTask(void *pvParameters);
+    File recordfile;
+    void startArtnetrecord(File file);
+     bool stopRecord=true;
+    void stopArtnetRecord();
+    uint16_t readFrame();
+    uint16_t readFrameRecord();
+    uint16_t buffer_read=0;
+    uint16_t buffer_play=0;
+    uint32_t timenow=0;
+    uint8_t * getFrameReadSD();
+    uint32_t totalrecording=0;
+   // void getFrameandRecord();
+    uint8_t * ledsbuffer=NULL;
+    void setLedsBuffer(uint8_t * leds);
     SemaphoreHandle_t Artnet_Semaphore2 = xSemaphoreCreateBinary();
     uint16_t last_size=0;
     uint32_t getsync();
+    uint32_t recordStartTime;
+    uint32_t recordEndTime;
+    bool firstframe=false;
+    bool readNextFrameAndWait(File playingfile);
   bool running=false;
      uint8_t * getframe(int framenumber);
     uint8_t * getframe();
+    //void getframe2(uint8_t* leds);
     void getframe(uint8_t* leds);
-    void getframe2( uint8_t* leds);
-    void getframe3( uint8_t* leds);
+    void getBufferFrame( uint8_t* leds);
+    void getFrameForRecord( uint8_t* leds);
     uint8_t * getframeread(int buffer);
     uint32_t nbframeread;
     uint32_t frameslues=0;
@@ -181,9 +209,25 @@ public:
   {
     artSyncCallback = fptr;
   }
+    
+    inline void setFrameCallback(void (*fptr)())
+    {
+      frameCallback = fptr;
+    }
+    
+    inline void setframeRecordCallback(void (*fptr)())
+    {
+      frameRecordCallback = fptr;
+    }
+    
+    inline void setreadFromSDCallback(void (*fptr)())
+    {
+        readFromSDCallback = fptr;
+    }
 
 private:
   uint8_t  node_ip_address[4];
+ 
   uint8_t  id[8];
   #if defined(ARDUINO_SAMD_ZERO) || defined(ESP8266) || defined(ESP32)
     WiFiUDPArtnet Udp;
@@ -214,6 +258,7 @@ private:
   IPAddress remoteIP;
   void (*artDmxCallback)(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data, IPAddress remoteIP);
   void (*artSyncCallback)(IPAddress remoteIP);
+   
 };
 
 #endif
