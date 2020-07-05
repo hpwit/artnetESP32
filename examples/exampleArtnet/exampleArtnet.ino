@@ -1,89 +1,41 @@
 
-#include <WiFi.h>
-//#include <ESP8266WiFi.h>
 
-#include <WiFiClient.h>
-#include <Artnet.h>
+#include <ArtnetESP32.h>
 
 #include "FastLED.h"
 FASTLED_USING_NAMESPACE
-//#include "I2S.h"
-#define FASTLED_SHOW_CORE 0
 
-#define NUM_LEDS_PER_STRIP 256
-#define NUM_STRIPS 16 //up to 22
-
+//The following has to be adapted to your specifications
 #define LED_WIDTH 123
 #define LED_HEIGHT 48
 #define NUM_LEDS LED_WIDTH*LED_HEIGHT
-#define UNIVERSE_SIZE 170
+#define UNIVERSE_SIZE 170 //my setup is 170 leds per universe no matter if the last universe is not full.
 CRGB leds[NUM_LEDS];
-//I2S controller(0);
-
-    
-//int Pins[16]={12,2,4,5,0,13,14,15,16,17,18,19,21,22,23,25};
-
-Artnet artnet;
 
 
-
-static TaskHandle_t FastLEDshowTaskHandle2 = 0;
-static TaskHandle_t userTaskHandle = 0;
+ArtnetESP32 artnet;
 
 
-
-
-
-void FastLEDshowESP322()
+void displayfunction()
 {
-    if (userTaskHandle == 0) {
-        const TickType_t xMaxBlockTime = pdMS_TO_TICKS( 200 );
-        // -- Store the handle of the current task, so that the show task can
-        //    notify it when it's done
-       // noInterrupts();
-        userTaskHandle = xTaskGetCurrentTaskHandle();
-        
-        // -- Trigger the show task
-        xTaskNotifyGive(FastLEDshowTaskHandle2);
-        //to thge contrary to the other one we do not wait for the display task to come back
-    }
-}
-
-
-
-void FastLEDshowTask2(void *pvParameters)
-{
-    const TickType_t xMaxBlockTime = pdMS_TO_TICKS( 500 );
-    // -- Run forever...
-    for(;;) {
-        // -- Wait for the trigger
-        ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-        
-            
-           
-               // memcpy(leds,Tpic,LED_WIDTH*LED_HEIGHT*sizeof(CRGB));
-            
-           memcpy(leds,artnet.getframe(),NUM_LEDS*sizeof(CRGB));
-           FastLED.show();
-           // controller.showPixels();
-               userTaskHandle=0; //so we can't have two display tasks at the same time
-                 
-           }
+  if (artnet.frameslues%100==0)
+   Serial.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
+   //here the buffer is the led array hence a simple FastLED.show() is enough to display the array
+   FastLED.show();
 }
 
 
 void setup() {
 
-   xTaskCreatePinnedToCore(FastLEDshowTask2, "FastLEDshowTask2", 1000, NULL,3, &FastLEDshowTaskHandle2, FASTLED_SHOW_CORE);
+ Serial.begin(115200);
    WiFi.mode(WIFI_STA);
-    
+
     Serial.printf("Connecting ");
     WiFi.begin("", "");
 
     while (WiFi.status() != WL_CONNECTED) {
       Serial.println(WiFi.status());
-   
-      
+
         delay(500);
         Serial.print(".");
     }
@@ -92,21 +44,18 @@ void setup() {
     Serial.println("WiFi connected.");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
-  // put your setup code here, to run once:
- FastLED.addLeds<WS2812B, 12>(leds, NUM_LEDS);
-    
-//controller.initled(leds,Pins,NUM_STRIPS,NUM_LEDS_PER_STRIP);
-artnet.begin(NUM_LEDS,UNIVERSE_SIZE,1); //the number of pixels and the maximum size of your iniverses 1 represent the buffer
+
+//set up your FastLED to your configuration ps: the more pins the better
+    FastLED.addLeds<NEOPIXEL, 12>(leds, NUM_LEDS);
+
+    artnet.setFrameCallback(&displayfunction); //set the function that will be called back a frame has been received
+    artnet.setLedsBuffer((uint8_t*)leds); //set the buffer to put the frame once a frame has been received
+
+    artnet.begin(NUM_LEDS,UNIVERSE_SIZE); //configure artnet
+
+
 }
 
 void loop() {
-  artnet.read();
-  /* in artnet.getframe() you have the content of the frame
-  for instance you can do*/
-  
-  
- FastLEDshowESP322();
-  artnet.resetsync();
-  // put your main code here, to run repeatedly:
-
+    artnet.readFrame(); //ask to read a full frame
 }
