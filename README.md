@@ -32,17 +32,30 @@ It is necessary to reduce the time needed to display the leds => split your leds
 
 it will work but the display will not be smooth.
 
-### Solutions implemented in that library
+### Recording/Replaying  the universes
+Writing/Reading to/from a SD card is also a time consuming process which could last longer than time betwwen two frames. The frames are not always sent with an exact timing depending on the artnet sending program. 
+To be able to replay it with the most accurate timing the program will store in microseconds the delay between frames to be used during replay.
+
+### Solutions implemented in this library
 
 #### Artnet universe processing speed
 To process the wifi packet and the artnet packet this library uses the barebone socket functions to reduce the  processing. 
 It gather all the universes at once removing all unnessary code out of this function
 
-#### Using the scond core
-If we use a pure sequential workflow the program will not be listening to artnet packet while displaying the leds. Hence this library implements the use of the two cores of the ESP32 : one core is processing the data while the other one is displaying the data
-
-### Conclusions
+#### Using the second core
+If we use a pure sequential workflow the program will not be listening to artnet packet while displaying the leds. Hence this library implements the use of the two cores of the ESP32 : one core is processing the data while the other one is displaying/recording the data. 
 
 
+### Take away
+When using artnet streaming, You need to take into account the timing issues : 
+* Do not try to get artnet to broadcast at too much fps otherwise you will have too many lost frames in artnet
+* Dispatch your leds over several pins to lower the refresh time of your display
+* Do not hesitate to buy a good SD card to have a good write/read speed
+
+## Library usage
+
+```C
+
+```
 
 

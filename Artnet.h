@@ -66,6 +66,7 @@ THE SOFTWARE.
 static TaskHandle_t artnetAfterFrameHandle = 0;
 static TaskHandle_t recordArtnetHandle = 0;
 static TaskHandle_t readFromSDHandle = 0;
+static TaskHandle_t userArtnetHandle=0;
 
 struct artnet_reply_s {
   uint8_t  id[8];

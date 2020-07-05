@@ -454,7 +454,11 @@ uint16_t Artnet::read2(TaskHandle_t task)
         frameslues++;
         Udp.flush();
         currentframenumber=(currentframenumber+1)%2;
-        xTaskNotifyGive(task);
+        if(userArtnetHandle==0)
+        {
+            userArtnetHandle = xTaskGetCurrentTaskHandle();
+            xTaskNotifyGive(task);
+        }
         //currentframenumber=(currentframenumber+1)%2;
         //memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
     }
@@ -530,6 +534,7 @@ void Artnet::afterFrameTask(void *pvParameters)
             artnet->getBufferFrame(artnet->ledsbuffer);
         if (((Artnet*)pvParameters)->frameCallback)
             (*((Artnet*)pvParameters)->frameCallback)();
+        userArtnetHandle=0;
         
     }
 }
