@@ -57,7 +57,7 @@ THE SOFTWARE.
 #include "freertos/queue.h"
 #include "soc/timer_group_struct.h"
 #include "soc/timer_group_reg.h"
-
+#include "esp_task_wdt.h"
 #include "FS.h"
 
 //static QueueHandle_t _artnet_queue;

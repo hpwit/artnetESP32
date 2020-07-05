@@ -53,9 +53,57 @@ When using artnet streaming, You need to take into account the timing issues :
 * Do not hesitate to buy a good SD card to have a good write/read speed
 
 ## Library usage
-
+### The artnet object
 ```C
-
+#include "ArnetESP32.h"
+ArtnetESP32 artnet; 
 ```
+### Main functions
+#### `begin` function
+This function starts the artnet objects.
+usage : `begin(NUM_LEDS,UNIVERSE_SIZE)`
+* `NUM_LEDS` is the total number of leds of your setup
+* `UNIVERSE_SIZE` is the size of you universes in pixels
+Based on these two numbers the program will calculate the number of needed universes
+
+#### `setLedsBuffer(uint_8t*) buffer)` 
+This function will set the buffer that will store the frame retrieve from `readFrame()`  `readNextFrameAndWait()`  and `readFrameRecord()` 
+
+#### `readFrame()`
+This function will receive one frame or all the needed universes.
+* Will exit with "Time out" after 1s of inactivity
+* Will return `1` if a frame has been received otherwise `0` when timeouting
+
+#### `startArtnetrecord(File File)`
+This function sets up and starts what is needed to record the frames onto the file.
+
+#### `readFrameRecord()`
+This function receives a frame a store it in the file. It also store the delay between frames
+* Will exit with "Time out" after 1s of inactivity
+* Will return `1` if a frame has been received otherwise `0` when timeouting
+
+#### `stopArtnetRecord()`
+This function is mandatory to call to end the recording it will also close the file
+
+#### `readNextFrameAndWait(File file)` 
+This function reads a frame from the file and wait the necessary time.
+it returns `true` if the file has not be entirely read else it will returns `false`
+
+
+### The callback functions
+When uploading a frame, recording a frame or reading a frame from SD a callback function can be setup
+
+#### `setFrameCallback`
+This function set the function that will be called when a frame will be received using the `readFrame()` function
+
+#### `setframeRecordCallback`
+This function set the function that will be called when a frame will be received using the `readFrameRecord()` function
+
+#### `setreadFromSDCallback`
+This function set the function that will be called when a frame will be received using the `readNextFrameAndWait(File file)` function
+
+## Examples
+Each example shows how to uses these functions 
+
 
 
