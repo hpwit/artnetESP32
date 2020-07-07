@@ -66,7 +66,7 @@ This function starts the artnet objects.
 Based on these two numbers the program will calculate the number of needed universes
 
 #### `void setLedsBuffer(uint_8t*) buffer)` 
-This function will set the buffer that will store the frame retrieve from `readFrame()`  `readNextFrameAndWait()`  and `readFrameRecord()` 
+This function will set the buffer that will store the frame retrieved from `readFrame()`  `readNextFrameAndWait()`  and `readFrameRecord()` 
 
 #### `uint16_t readFrame()`
 This function will receive one frame or all the needed universes.
@@ -85,7 +85,7 @@ This function receives a frame a store it in the file. It also store the delay b
 This function is mandatory to call to end the recording it will also close the file
 
 #### `bool readNextFrameAndWait(File file)` 
-This function reads a frame from the file and wait the necessary time.
+This function reads a frame from the file and waits the necessary time.
 it returns `true` if the file has not be entirely read else it will returns `false`
 
 

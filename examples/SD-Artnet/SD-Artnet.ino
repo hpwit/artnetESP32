@@ -27,7 +27,7 @@ void recordfunction()
   if (artnet.frameslues%100==0)
    Serial.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
    //here the buffer is the led array hence a simple FastLED.show() is enough to display the array
-   FastLED.show(); //if the array is really big I would note put any FastLED.show() because it takes time
+   FastLED.show(); //if the array is really big I would not put any FastLED.show() because it takes time
 }
 
 
