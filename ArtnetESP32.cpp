@@ -25,6 +25,7 @@
 #include <ArtnetESP32.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
+#define BUFFER_SIZE 800
 
 ArtnetESP32::ArtnetESP32() {}
 
@@ -107,7 +108,7 @@ void ArtnetESP32::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses)
         nbNeededUniverses++;
     }
     //artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
-    artnetleds1= (uint8_t *)malloc( (nbpixelsperuniverses*3+ART_DMX_START)*nbNeededUniverses*2 +8);
+    artnetleds1= (uint8_t *)malloc( (nbpixelsperuniverses*3+ART_DMX_START)*nbNeededUniverses*2 +8+BUFFER_SIZE);
     if(artnetleds1==NULL)
     {
         Serial.printf("impossible to create the buffer\n");
@@ -293,7 +294,7 @@ uint32_t ArtnetESP32::getElaspseTime()
     
 }
 
-uint16_t ArtnetESP32::read3()
+uint16_t ArtnetESP32::readWithoutWaiting()
 {
     struct sockaddr_in si_other;
     int slen = sizeof(si_other) , len;
@@ -306,6 +307,39 @@ uint16_t ArtnetESP32::read3()
     uint8_t * offset;
     bool resetframe=true;
     
+    timef=millis();
+    offset=artnetleds1+currentframenumber*decal2;
+    while(incomingUniverse!=nbNeededUniverses-1)
+    {
+        if(millis()-timef>1000)
+        {
+            Serial.println("Time out fired");
+            return 0;
+        }
+        
+        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+        {
+            
+            incomingUniverse = *(offset+14);
+        }
+    }
+    
+    
+}
+
+uint16_t ArtnetESP32::read3()
+{
+    struct sockaddr_in si_other;
+    int slen = sizeof(si_other) , len;
+    long timef=0;
+    
+    //timef=millis();
+    incomingUniverse=99;
+    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
+    uint32_t decal2=nbNeededUniverses*decal;
+    uint8_t * offset;
+   // bool resetframe=true;
+    
 er:
     timef=millis();
     offset=artnetleds1+currentframenumber*decal2;
@@ -317,28 +351,28 @@ er:
             Serial.println("Time out fired");
             return 0;
         }
-        if ((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
         {
             
             incomingUniverse = offset[14] ;
         }
     }
-//    if(resetframe==true or frameslues==0)
-//    {
-//        current_time=ESP.getCycleCount();
-//        if(frameslues==0)
-//        {
-//            start_time=current_time;
-//        }
-//        elaspe[currentframenumber]=(current_time-start_time);
-//        /*if(elaspe[currentframenumber]/240000<30)
-//         Serial.printf("frame:%d time:%lu\n",frameslues,elaspe[currentframenumber]/240);*/
-//        start_time=current_time;
-//    }
+        //    if(resetframe==true or frameslues==0)
+        //    {
+        //        current_time=ESP.getCycleCount();
+        //        if(frameslues==0)
+        //        {
+        //            start_time=current_time;
+        //        }
+        //        elaspe[currentframenumber]=(current_time-start_time);
+        //        /*if(elaspe[currentframenumber]/240000<30)
+        //         Serial.printf("frame:%d time:%lu\n",frameslues,elaspe[currentframenumber]/240);*/
+        //        start_time=current_time;
+        //    }
     for(int uni=1;uni<nbNeededUniverses;uni++)
     {
         offset+=decal;
-        while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+        while((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
         {
             if(millis()-timef>1000)
             {
@@ -350,7 +384,7 @@ er:
         if(incomingUniverse!=uni)
         {
             lostframes++;
-            resetframe=false;
+           // resetframe=false;
             goto er;
         }
     }
@@ -387,7 +421,7 @@ er:
             Serial.println("Time out fired");
             return 0;
         }
-        if ((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
         {
             
             incomingUniverse = offset[14] ;
@@ -408,7 +442,7 @@ er:
     for(int uni=1;uni<nbNeededUniverses;uni++)
     {
         offset+=decal;
-        while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+        while((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
         {
             if(millis()-timef>1000)
             {
@@ -481,7 +515,7 @@ uint16_t ArtnetESP32::read2(TaskHandle_t task)
                 Serial.println("Time out fired");
                 return 0;
             }
-            if ((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+            if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
             {
                 
                 incomingUniverse = offset[14] ;//+ Udp.udpBuffer[15];
@@ -494,7 +528,7 @@ uint16_t ArtnetESP32::read2(TaskHandle_t task)
         for(int uni=1;uni<nbNeededUniverses;uni++)
         {
             offset+=decal;
-            while((len = recvfrom(Udp.udp_server, offset, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+            while((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
             {
                 if(millis()-timef>1000)
                 {

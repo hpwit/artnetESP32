@@ -155,6 +155,7 @@ public:
   uint16_t read();
      uint16_t read2();
     uint16_t read3();
+    uint16_t readWithoutWaiting();
     uint16_t read2(TaskHandle_t task);
     uint16_t read(TaskHandle_t task);
   void printPacketHeader();
