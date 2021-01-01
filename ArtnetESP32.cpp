@@ -36,112 +36,113 @@ uint32_t ArtnetESP32::getsync()
 
 void ArtnetESP32::resetsync()
 {
-    sync=0;
-    sync2=0;
-    
+    sync = 0;
+    sync2 = 0;
 }
 
-uint8_t * ArtnetESP32::getframe(int framenumber)
+uint8_t *ArtnetESP32::getframe(int framenumber)
 {
     /*if(framenumber<2)
      return frames[framenumber];
      else*/
     return NULL;
 }
-void ArtnetESP32::getframe(uint8_t* leds)
+void ArtnetESP32::getframe(uint8_t *leds)
 {
-    memcpy(leds,&artnetleds1[((currentframenumber+1)%2)*nbPixels*3],nbPixels*3);
+    memcpy(leds, &artnetleds1[((currentframenumber + 1) % 2) * nbPixels * 3], nbPixels * 3);
 }
 
-uint8_t * ArtnetESP32::getframe()
+uint8_t *ArtnetESP32::getframe()
 {
-    uint8_t rd=readbuffer;
-    readbuffer=(readbuffer+1)%buffernum;
+    uint8_t rd = readbuffer;
+    readbuffer = (readbuffer + 1) % buffernum;
     nbframeread++;
     //        Serial.printf("Read framebuff:%d\n",rd);
-    return &artnetleds1[nbPixels*3*rd];
-    
+    return &artnetleds1[nbPixels * 3 * rd];
 }
 
 void ArtnetESP32::begin(byte mac[], byte ip[])
 {
 #if !defined(ARDUINO_SAMD_ZERO) && !defined(ESP8266) && !defined(ESP32)
-    Ethernet.begin(mac,ip);
+    Ethernet.begin(mac, ip);
 #endif
-    
+
     Udp.begin(ART_NET_PORT);
 }
 
 void ArtnetESP32::stop()
 {
-    if(running)
+    if (running)
     {
         Udp.stop();
         //for(int i=0;i<buffernum;i++)
         //  if(frames[i]!=NULL)
         free(artnetleds1);
-        running=false;
+        running = false;
     }
-    
 }
-void ArtnetESP32::begin(uint16_t nbpixels,uint16_t nbpixelsperuniverses)
+
+void ArtnetESP32::begin(uint16_t nbpixels, uint16_t nbpixelsperuniverses)
 {
-    if(running)
+   
+    begin(nbpixels,nbpixelsperuniverses,0);
+}
+void ArtnetESP32::begin(uint16_t nbpixels, uint16_t nbpixelsperuniverses,int startunivers)
+{
+    printf("Starting artnet with starting universe :%d\n",startunivers);
+    startuniverse=startunivers;
+    if (running)
     {
         Serial.println("Artnet Already Running");
         return;
     }
-    nbframeread=0;
-    currentframenumber=0;
-    buffernum=2;
-    readbuffer=2-1;
-    
-    
-    
-    
-    running=true;
-    nbPixels=nbpixels;
-    nbPixelsPerUniverse=nbpixelsperuniverses;
-    nbNeededUniverses=nbPixels/nbPixelsPerUniverse;
-    if(nbNeededUniverses*nbPixelsPerUniverse-nbPixels<0) {
-        
+    nbframeread = 0;
+    currentframenumber = 0;
+    buffernum = 2;
+    readbuffer = 2 - 1;
+
+    running = true;
+    nbPixels = nbpixels;
+    nbPixelsPerUniverse = nbpixelsperuniverses;
+    nbNeededUniverses = nbPixels / nbPixelsPerUniverse;
+    if (nbNeededUniverses * nbPixelsPerUniverse - nbPixels < 0)
+    {
+
         nbNeededUniverses++;
     }
     //artnetleds1= (uint8_t *)malloc(nbpixels*buffernumber*3);
-    artnetleds1= (uint8_t *)malloc( (nbpixelsperuniverses*3+ART_DMX_START)*nbNeededUniverses*2 +8+BUFFER_SIZE);
-    if(artnetleds1==NULL)
+    artnetleds1 = (uint8_t *)malloc((nbpixelsperuniverses * 3 + ART_DMX_START) * nbNeededUniverses * 2 + 8 + BUFFER_SIZE);
+    if (artnetleds1 == NULL)
     {
         Serial.printf("impossible to create the buffer\n");
         return;
-        
     }
-    Serial.printf("Starting Artnet nbNee sdedUniverses:%d\n",nbNeededUniverses);
-    
-    if(nbNeededUniverses<=32)
+    Serial.printf("Starting Artnet nbNee sdedUniverses:%d\n", nbNeededUniverses);
+
+    if (nbNeededUniverses <= 32)
     {
-        if(nbNeededUniverses<32)
-            syncmax=(1<<nbNeededUniverses)-1;
+        if (nbNeededUniverses < 32)
+            syncmax = (1 << nbNeededUniverses) - 1;
         else
-            syncmax=0xFFFFFFFF;
-        syncmax2=0;
+            syncmax = 0xFFFFFFFF;
+        syncmax2 = 0;
     }
     else
     {
-        syncmax=0xFFFFFFFF;
-        if(nbNeededUniverses-32<32)
-            syncmax2=(1<<(nbNeededUniverses-32))-1;
+        syncmax = 0xFFFFFFFF;
+        if (nbNeededUniverses - 32 < 32)
+            syncmax2 = (1 << (nbNeededUniverses - 32)) - 1;
         else
-            syncmax2=0xFFFFFFFF;
+            syncmax2 = 0xFFFFFFFF;
         //syncmax2=0;
-        
     }
-    last_size=(nbpixels%nbpixelsperuniverses)*3;
-    if(last_size==0)
-        last_size=nbpixelsperuniverses*3;
+    last_size = (nbpixels % nbpixelsperuniverses) * 3;
+    if (last_size == 0)
+        last_size = nbpixelsperuniverses * 3;
     //create the task for the display
-    xTaskCreatePinnedToCore(ArtnetESP32::afterFrameTask, "afterFrameTask", 3000, this,1, &artnetAfterFrameHandle, 0);
-    xTaskCreatePinnedToCore(ArtnetESP32::readFromSDTask, "readFromSDTask", 3000, this,1, &readFromSDHandle, 0);
-    
+    xTaskCreatePinnedToCore(ArtnetESP32::afterFrameTask, "afterFrameTask", 3000, this, 1, &artnetAfterFrameHandle, 0);
+    //xTaskCreatePinnedToCore(ArtnetESP32::readFromSDTask, "readFromSDTask", 3000, this,1, &readFromSDHandle, 0);
+
     Udp.begin(ART_NET_PORT);
 }
 
@@ -155,7 +156,6 @@ void ArtnetESP32::setBroadcast(byte bc[])
     broadcast = bc;
 }
 
-
 /*
  uint16_t ArtnetESP32::artnet_task(void *pvParameters)
  {
@@ -165,7 +165,6 @@ void ArtnetESP32::setBroadcast(byte bc[])
  }
  }
  */
-
 
 //void ArtnetESP32::getFramedRecord()
 //{
@@ -196,281 +195,232 @@ void ArtnetESP32::setBroadcast(byte bc[])
 //    nbframeread++;
 //}
 
-
 bool ArtnetESP32::readNextFrameAndWait(File playingfile)
 {
-    if(playingfile.available()>0)
+    if (playingfile.available() > 0)
     {
-        uint32_t waitnewtframe=0;
-        playingfile.read(getframeread(buffer_read),nbPixels*3+4);
-        waitnewtframe=*((uint32_t*)getframeread(buffer_read));
-        totalrecording+=waitnewtframe/240;
-        uint32_t time_now=ESP.getCycleCount();
-        uint32_t diff=(time_now-timenow);
-        if(waitnewtframe>diff)
-         delayMicroseconds((waitnewtframe-diff)/240);
-        
-        timenow=ESP.getCycleCount();
-        buffer_play=buffer_read;
+        uint32_t waitnewtframe = 0;
+        playingfile.read(getframeread(buffer_read), nbPixels * 3 + 4);
+        waitnewtframe = *((uint32_t *)getframeread(buffer_read));
+        totalrecording += waitnewtframe / 240;
+        uint32_t time_now = ESP.getCycleCount();
+        uint32_t diff = (time_now - timenow);
+        if (waitnewtframe > diff)
+            delayMicroseconds((waitnewtframe - diff) / 240);
+
+        timenow = ESP.getCycleCount();
+        buffer_play = buffer_read;
         xTaskNotifyGive(readFromSDHandle);
         buffer_read++;
         return true;
     }
     else
     {
-        
-        Serial.printf("Reading done nbframes:%d totlrecord %ld ms\n",buffer_read,totalrecording/1000);
-        buffer_read=0;
-        buffer_play=0;
-        totalrecording=0;
+
+        Serial.printf("Reading done nbframes:%d totlrecord %ld ms\n", buffer_read, totalrecording / 1000);
+        buffer_read = 0;
+        buffer_play = 0;
+        totalrecording = 0;
         return false;
     }
-    
 }
 
-void ArtnetESP32::getFrameForRecord(uint8_t* leds)
+void ArtnetESP32::getFrameForRecord(uint8_t *leds)
 {
-    uint32_t size=nbPixelsPerUniverse*3;
-    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-    uint32_t decal2=nbNeededUniverses*decal;
-    uint8_t * offset;
-    recordfile.write((uint8_t*)(&elaspe[nbframeread%2]),4);
-    offset=artnetleds1+(nbframeread%2)*decal2+ART_DMX_START;
-    if(nbNeededUniverses>1)
+    uint32_t size = nbPixelsPerUniverse * 3;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *offset;
+    recordfile.write((uint8_t *)(&elaspe[nbframeread % 2]), 4);
+    offset = artnetleds1 + (nbframeread % 2) * decal2 + ART_DMX_START;
+    if (nbNeededUniverses > 1)
     {
-        for(int uni=0;uni<nbNeededUniverses-1;uni++)
+        for (int uni = 0; uni < nbNeededUniverses - 1; uni++)
         {
-            memcpy(leds,offset,size);
-            offset+=decal;
-            leds+=size;
+            memcpy(leds, offset, size);
+            offset += decal;
+            leds += size;
         }
     }
-    memcpy(leds,offset,last_size);
+    memcpy(leds, offset, last_size);
     //For an unknown reason if you put the write here, only couple of leds are actually copied ...
     //recordfile.write(leds,nbPixels*3);
-    
 }
 
-
-
-uint8_t * ArtnetESP32::getFrameReadSD()
+uint8_t *ArtnetESP32::getFrameReadSD()
 {
-    return getframeread(buffer_play)+4;
+    return getframeread(buffer_play) + 4;
 }
 
-uint8_t * ArtnetESP32::getframeread(int buffer)
+uint8_t *ArtnetESP32::getframeread(int buffer)
 {
-    return artnetleds1+(buffer%2)*(nbPixelsPerUniverse*3*nbNeededUniverses+4);
+    return artnetleds1 + (buffer % 2) * (nbPixelsPerUniverse * 3 * nbNeededUniverses + 4);
 }
-                      
-                      
-                      
-void ArtnetESP32::getBufferFrame(uint8_t* leds)
+
+void ArtnetESP32::getBufferFrame(uint8_t *leds)
 {
-    uint32_t size=nbPixelsPerUniverse*3;
-    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-    uint32_t decal2=nbNeededUniverses*decal;
+    uint32_t size = nbPixelsPerUniverse * 3;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
     // uint8_t * udpof=Udp.udpBuffer + ART_DMX_START;
-    uint8_t * offset;
-    offset=artnetleds1+((currentframenumber+1)%2)*decal2+ART_DMX_START;
-    
-    if(nbNeededUniverses>1)
+    uint8_t *offset;
+    offset = artnetleds1 + ((currentframenumber + 1) % 2) * decal2 + ART_DMX_START;
+
+    if (nbNeededUniverses > 1)
     {
-        for(int uni=0;uni<nbNeededUniverses-1;uni++)
+        for (int uni = 0; uni < nbNeededUniverses - 1; uni++)
         {
-            memcpy(leds,offset,size);
-            offset+=decal;
-            leds+=size;
+            memcpy(leds, offset, size);
+            offset += decal;
+            leds += size;
         }
     }
-    memcpy(leds,offset,last_size);
+    memcpy(leds, offset, last_size);
     nbframeread++;
 }
 
 uint32_t ArtnetESP32::getElaspseTime()
 {
-    return elaspe[(currentframenumber+1)%2];
-    
-    
+    return elaspe[(currentframenumber + 1) % 2];
 }
 
 uint16_t ArtnetESP32::readWithoutWaiting()
 {
     struct sockaddr_in si_other;
-    int slen = sizeof(si_other) , len;
-    long timef=0;
-    
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+
     //timef=millis();
-    incomingUniverse=99;
-    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-    uint32_t decal2=nbNeededUniverses*decal;
-    uint8_t * offset;
-    bool resetframe=true;
-    
-    timef=millis();
-    offset=artnetleds1+currentframenumber*decal2;
-    while(incomingUniverse!=nbNeededUniverses-1)
+    incomingUniverse = 99;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *offset;
+    bool resetframe = true;
+
+    timef = millis();
+    offset = artnetleds1 + currentframenumber * decal2;
+    while (incomingUniverse != nbNeededUniverses - 1)
     {
-        if(millis()-timef>1000)
+        if (millis() - timef > 1000)
         {
             Serial.println("Time out fired");
             return 0;
         }
-        
-        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+
+        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
         {
-            
-            incomingUniverse = *(offset+14);
+
+            incomingUniverse = *(offset + 14);
         }
     }
-    
-    
 }
 
-uint16_t ArtnetESP32::read3()
+uint16_t ArtnetESP32::read4()
 {
     struct sockaddr_in si_other;
-    int slen = sizeof(si_other) , len;
-    long timef=0;
-    
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+
     //timef=millis();
-    incomingUniverse=99;
-    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-    uint32_t decal2=nbNeededUniverses*decal;
-    uint8_t * offset;
-   // bool resetframe=true;
-    
-er:
-    timef=millis();
-    offset=artnetleds1+currentframenumber*decal2;
-    
-    while(incomingUniverse!=0)
+    incomingUniverse = 99;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *offset;
+    offset = artnetleds1 + currentframenumber * decal2;
+    uint8_t ggh[200];
+    while (1)
     {
-        if(millis()-timef>1000)
+        int i = 0;
+        while (i < 200)
         {
-            Serial.println("Time out fired");
-            return 0;
-        }
-        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
-        {
-            
-            incomingUniverse = offset[14] ;
-        }
-    }
-        //    if(resetframe==true or frameslues==0)
-        //    {
-        //        current_time=ESP.getCycleCount();
-        //        if(frameslues==0)
-        //        {
-        //            start_time=current_time;
-        //        }
-        //        elaspe[currentframenumber]=(current_time-start_time);
-        //        /*if(elaspe[currentframenumber]/240000<30)
-        //         Serial.printf("frame:%d time:%lu\n",frameslues,elaspe[currentframenumber]/240);*/
-        //        start_time=current_time;
-        //    }
-    for(int uni=1;uni<nbNeededUniverses;uni++)
-    {
-        offset+=decal;
-        while((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
-        {
-            if(millis()-timef>1000)
+            if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
             {
-                Serial.println("Time out fired");
-                return 0;
+
+                ggh[i] = offset[14];
+                i++;
             }
         }
-        incomingUniverse = *(offset+14);
-        if(incomingUniverse!=uni)
+        for (int i = 0; i < 200; i++)
         {
-            lostframes++;
-           // resetframe=false;
-            goto er;
+            Serial.printf("%d ", ggh[i]);
         }
+        Serial.println();
     }
-    Udp.flush();
-    currentframenumber=(currentframenumber+1)%2;
-    frameslues++;
-    return 1;
 }
-
-
 
 
 uint16_t ArtnetESP32::read2()
 {
     struct sockaddr_in si_other;
-    int slen = sizeof(si_other) , len;
-    long timef=0;
-    
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+
     //timef=millis();
-    incomingUniverse=99;
-    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-    uint32_t decal2=nbNeededUniverses*decal;
-    uint8_t * offset;
-    bool resetframe=true;
-    
+    incomingUniverse = 99;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *offset;
+    bool resetframe = true;
+
 er:
-    timef=millis();
-    offset=artnetleds1+currentframenumber*decal2;
-    
-    while(incomingUniverse!=0)
+    timef = millis();
+    offset = artnetleds1 + currentframenumber * decal2;
+
+    while (incomingUniverse != 0)
     {
-        if(millis()-timef>1000)
+        if (millis() - timef > 1000)
         {
             Serial.println("Time out fired");
             return 0;
         }
-        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
         {
-            
-            incomingUniverse = offset[14] ;
+
+            incomingUniverse = offset[14];
         }
     }
-    if(resetframe==true or frameslues==0)
+    if (resetframe == true or frameslues == 0)
     {
-        current_time=ESP.getCycleCount();
-        if(frameslues==0)
+        current_time = ESP.getCycleCount();
+        if (frameslues == 0)
         {
-            start_time=current_time;
+            start_time = current_time;
         }
-        elaspe[currentframenumber]=(current_time-start_time);
+        elaspe[currentframenumber] = (current_time - start_time);
         /*if(elaspe[currentframenumber]/240000<30)
          Serial.printf("frame:%d time:%lu\n",frameslues,elaspe[currentframenumber]/240);*/
-        start_time=current_time;
+        start_time = current_time;
     }
-    for(int uni=1;uni<nbNeededUniverses;uni++)
+    for (int uni = 1; uni < nbNeededUniverses; uni++)
     {
-        offset+=decal;
-        while((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+        offset += decal;
+        while ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) <= 0)
         {
-            if(millis()-timef>1000)
+            if (millis() - timef > 1000)
             {
                 Serial.println("Time out fired");
                 return 0;
             }
         }
-        incomingUniverse = *(offset+14);
-        if(incomingUniverse!=uni)
+        incomingUniverse = *(offset + 14);
+        if (incomingUniverse != uni)
         {
             lostframes++;
-            resetframe=false;
+            resetframe = false;
             goto er;
         }
     }
     Udp.flush();
-    currentframenumber=(currentframenumber+1)%2;
+    currentframenumber = (currentframenumber + 1) % 2;
     frameslues++;
     return 1;
 }
 
-
-
 uint16_t ArtnetESP32::readFrame()
 {
     uint16_t result;
-    result=read3();
-    if(result==1 and artnetAfterFrameHandle)
+    result = read3();
+    if (result == 1 and artnetAfterFrameHandle)
         xTaskNotifyGive(artnetAfterFrameHandle);
     return result;
 }
@@ -478,78 +428,73 @@ uint16_t ArtnetESP32::readFrame()
 uint16_t ArtnetESP32::readFrameRecord()
 {
     uint16_t result;
-    result=read2();
+    result = read2();
     return result;
 }
-
 
 uint16_t ArtnetESP32::read2(TaskHandle_t task)
 {
     struct sockaddr_in si_other;
-    int slen = sizeof(si_other) , len;
-    long timef=0;
-    sync=0;
-    sync2=0;
-    timef=millis();
-    incomingUniverse=99;
-    uint32_t size=nbPixelsPerUniverse*3;
-    uint32_t decal=nbPixelsPerUniverse*3+ART_DMX_START;
-    uint32_t decal2=nbNeededUniverses*decal;
-    uint8_t * udpof=Udp.udpBuffer + ART_DMX_START;
-    uint8_t *offset2=artnetleds1;
-    offset2+=currentframenumber*decal2;
-    uint8_t * offset;
-    timef=millis();
-    for(;;){
-        
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+    sync = 0;
+    sync2 = 0;
+    timef = millis();
+    incomingUniverse = 99;
+    uint32_t size = nbPixelsPerUniverse * 3;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *udpof = Udp.udpBuffer + ART_DMX_START;
+    uint8_t *offset2 = artnetleds1;
+    offset2 += currentframenumber * decal2;
+    uint8_t *offset;
+    timef = millis();
+    for (;;)
+    {
+
     er:
-        
-        offset=offset2;//+currentframenumber*nbPixels*3;
-        
+
+        offset = offset2; //+currentframenumber*nbPixels*3;
+
         //er:
-        
-        while(incomingUniverse!=0)
+
+        while (incomingUniverse != 0)
         {
-            if(millis()-timef>1000)
+            if (millis() - timef > 1000)
             {
                 Serial.println("Time out fired");
                 return 0;
             }
-            if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
+            if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
             {
-                
-                incomingUniverse = offset[14] ;//+ Udp.udpBuffer[15];
-                
-                
+
+                incomingUniverse = offset[14]; //+ Udp.udpBuffer[15];
             }
-            
         }
-        
-        for(int uni=1;uni<nbNeededUniverses;uni++)
+
+        for (int uni = 1; uni < nbNeededUniverses; uni++)
         {
-            offset+=decal;
-            while((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) <=0)
+            offset += decal;
+            while ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) <= 0)
             {
-                if(millis()-timef>1000)
+                if (millis() - timef > 1000)
                 {
                     Serial.println("Time out fired");
                     return 0;
                 }
             }
-            incomingUniverse = *(offset+14);
-            if(incomingUniverse!=uni)
+            incomingUniverse = *(offset + 14);
+            if (incomingUniverse != uni)
             {
                 lostframes++;
                 goto er;
-                
             }
         }
-        
-        
+
         frameslues++;
         Udp.flush();
-        currentframenumber=(currentframenumber+1)%2;
-        if(userArtnetHandle==0)
+        currentframenumber = (currentframenumber + 1) % 2;
+        if (userArtnetHandle == 0)
         {
             userArtnetHandle = xTaskGetCurrentTaskHandle();
             xTaskNotifyGive(task);
@@ -557,152 +502,149 @@ uint16_t ArtnetESP32::read2(TaskHandle_t task)
         //currentframenumber=(currentframenumber+1)%2;
         //memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
     }
-    
-    
+
     return 1;
 }
 
-void ArtnetESP32::setLedsBuffer(uint8_t * leds)
+void ArtnetESP32::setLedsBuffer(uint8_t *leds)
 {
-    ledsbuffer=leds;
+    ledsbuffer = leds;
 }
 
 void ArtnetESP32::startArtnetrecord(File file)
 {
-    if(stopRecord)
+    if (stopRecord)
     {
-        recordfile=file;
-        stopRecord=false;
-        firstframe=false;
-        xTaskCreatePinnedToCore(ArtnetESP32::recordArtnetTask, "recordArtnetTask", 3000, this,1, &recordArtnetHandle, 0);
+        recordfile = file;
+        stopRecord = false;
+        firstframe = false;
+        xTaskCreatePinnedToCore(ArtnetESP32::recordArtnetTask, "recordArtnetTask", 3000, this, 1, &recordArtnetHandle, 0);
     }
 }
 
 void ArtnetESP32::stopArtnetRecord()
 {
-    stopRecord=true;
+    stopRecord = true;
 }
 
 void ArtnetESP32::recordArtnetTask(void *pvParameters)
 {
-    ArtnetESP32 * artnet= (ArtnetESP32*)pvParameters;
-    artnet->nbframeread=0;
-    artnet->frameslues=0;
-    artnet->lostframes=0;
+    ArtnetESP32 *artnet = (ArtnetESP32 *)pvParameters;
+    artnet->nbframeread = 0;
+    artnet->frameslues = 0;
+    artnet->lostframes = 0;
     Serial.println("Ready to record");
-    while(!artnet->stopRecord)
+    while (!artnet->stopRecord)
     {
-        if(artnet->nbframeread<artnet->frameslues)
+        if (artnet->nbframeread < artnet->frameslues)
         {
-            if(artnet->frameslues==1)
+            if (artnet->frameslues == 1)
             {
-                artnet->recordStartTime=millis();
+                artnet->recordStartTime = millis();
                 Serial.println("First Frame recorded\n");
             }
             artnet->getFrameForRecord(artnet->ledsbuffer);
-           artnet->recordfile.write(artnet->ledsbuffer,artnet->nbPixels*3);
-             artnet->nbframeread++;
-            if(artnet->frameRecordCallback)
+            artnet->recordfile.write(artnet->ledsbuffer, artnet->nbPixels * 3);
+            artnet->nbframeread++;
+            if (artnet->frameRecordCallback)
                 (*artnet->frameRecordCallback)();
         }
-        TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE; // write enable
-        TIMERG0.wdt_feed=1;                       // feed dog
-        TIMERG0.wdt_wprotect=0;
+        TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE; // write enable
+        TIMERG0.wdt_feed = 1;                       // feed dog
+        TIMERG0.wdt_wprotect = 0;
     }
     artnet->recordfile.close();
-    artnet->recordEndTime=millis();
-    Serial.printf("Record stopped framesartnet:%d framesrecorded:%d  lostsframes:%d duration:%ld ms\n",artnet->frameslues,artnet->frameslues,artnet->lostframes,artnet->recordEndTime-artnet->recordStartTime);
-    
-    artnet->nbframeread=0;
-    artnet->frameslues=0;
-    artnet->lostframes=0;
+    artnet->recordEndTime = millis();
+    Serial.printf("Record stopped framesartnet:%d framesrecorded:%d  lostsframes:%d duration:%ld ms\n", artnet->frameslues, artnet->frameslues, artnet->lostframes, artnet->recordEndTime - artnet->recordStartTime);
+
+    artnet->nbframeread = 0;
+    artnet->frameslues = 0;
+    artnet->lostframes = 0;
     vTaskDelete(NULL);
 }
 
 void ArtnetESP32::afterFrameTask(void *pvParameters)
 {
-    ArtnetESP32 * artnet= (ArtnetESP32*)pvParameters;
-    for(;;) {
-        
-        ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-        if(artnet->ledsbuffer!=NULL)
+    ArtnetESP32 *artnet = (ArtnetESP32 *)pvParameters;
+    for (;;)
+    {
+
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (artnet->ledsbuffer != NULL)
             artnet->getBufferFrame(artnet->ledsbuffer);
-        if (((ArtnetESP32*)pvParameters)->frameCallback)
-            (*((ArtnetESP32*)pvParameters)->frameCallback)();
-        userArtnetHandle=0;
-        
+        if (((ArtnetESP32 *)pvParameters)->frameCallback)
+            (*((ArtnetESP32 *)pvParameters)->frameCallback)();
+        userArtnetHandle = 0;
     }
 }
 
 void ArtnetESP32::readFromSDTask(void *pvParameters)
 {
-  ArtnetESP32 * artnet= (ArtnetESP32*)pvParameters;
-  for(;;) {
-      
-      ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-      if(artnet->ledsbuffer!=NULL)
-          memcpy(artnet->ledsbuffer,artnet->getframeread(artnet->buffer_read)+4,artnet->nbPixels*3);
-      if (((ArtnetESP32*)pvParameters)->readFromSDCallback)
-          (*((ArtnetESP32*)pvParameters)->readFromSDCallback)();
-      
-  }
-}
+    ArtnetESP32 *artnet = (ArtnetESP32 *)pvParameters;
+    for (;;)
+    {
 
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (artnet->ledsbuffer != NULL)
+            memcpy(artnet->ledsbuffer, artnet->getframeread(artnet->buffer_read) + 4, artnet->nbPixels * 3);
+        if (((ArtnetESP32 *)pvParameters)->readFromSDCallback)
+            (*((ArtnetESP32 *)pvParameters)->readFromSDCallback)();
+    }
+}
 
 uint16_t ArtnetESP32::read()
 {
-    
+
     struct sockaddr_in si_other;
-    int slen = sizeof(si_other) , len;
-    long timef=0;
+    int slen = sizeof(si_other), len;
+    long timef = 0;
     //for(;;){
-    sync=0;
-    sync2=0;
-    timef=millis();
-    while(sync!=syncmax or sync2!=syncmax2 )
+    sync = 0;
+    sync2 = 0;
+    timef = millis();
+    while (sync != syncmax or sync2 != syncmax2)
     {
-        if(millis()-timef>1000)
+        if (millis() - timef > 1000)
         {
             Serial.println("Time out fired");
             return 0;
         }
-        
+
         //packetSize = Udp.parsePacket2();
-        
+
         /*char * buf = new char[1460];
          if(!buf){
          return 0;
          }*/
-        if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
-            
+        if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
+
         {
-            incomingUniverse = Udp.udpBuffer[14];// | (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
-            timef=millis();
-            
-            memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
-            
-            if(incomingUniverse==0)
+            incomingUniverse = Udp.udpBuffer[14]; // | (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
+            timef = millis();
+
+            memcpy(&artnetleds1[nbPixelsPerUniverse * (incomingUniverse)*3], Udp.udpBuffer + ART_DMX_START, nbPixelsPerUniverse * 3);
+
+            if (incomingUniverse == 0)
             {
                 //Serial.println("*************new frame**************");
-                if(sync |sync2){
-                    
-                    
+                if (sync | sync2)
+                {
+
                     lostframes++;
-                    
                 }
-                sync=1;
-                sync2=0;
+                sync = 1;
+                sync2 = 0;
             }
-            else{
-                if(incomingUniverse<32)
-                    sync=sync  | (1<<incomingUniverse);
+            else
+            {
+                if (incomingUniverse < 32)
+                    sync = sync | (1 << incomingUniverse);
                 else
-                    sync2=sync2  | (1<<(incomingUniverse-32));
+                    sync2 = sync2 | (1 << (incomingUniverse - 32));
             }
         }
-        
     }
-    
+
     frameslues++;
     Udp.flush();
     //currentframenumber=(currentframenumber+1)%2;
@@ -711,60 +653,59 @@ uint16_t ArtnetESP32::read()
     return 1;
 }
 
-
 uint16_t ArtnetESP32::read(TaskHandle_t task)
 {
-    
+
     struct sockaddr_in si_other;
-    int slen = sizeof(si_other) , len;
-    long timef=0;
-    for(;;){
-        sync=0;
-        sync2=0;
-        timef=millis();
-        while(sync!=syncmax or sync2!=syncmax2 )
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+    for (;;)
+    {
+        sync = 0;
+        sync2 = 0;
+        timef = millis();
+        while (sync != syncmax or sync2 != syncmax2)
         {
-            if(millis()-timef>1000)
+            if (millis() - timef > 1000)
             {
                 Serial.println("Time out fired");
                 return 0;
             }
-            
+
             //packetSize = Udp.parsePacket2();
-            
+
             /*char * buf = new char[1460];
              if(!buf){
              return 0;
              }*/
-            if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) >0 )//1460
-                
+            if ((len = recvfrom(Udp.udp_server, Udp.udpBuffer, 800, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
+
             {
-                incomingUniverse = Udp.udpBuffer[14] ;//| (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
-                timef=millis();
-                memcpy(&artnetleds1[nbPixelsPerUniverse*(incomingUniverse)*3+currentframenumber*nbPixels*3],Udp.udpBuffer + ART_DMX_START,nbPixelsPerUniverse*3);
-                
-                if(incomingUniverse==0)
+                incomingUniverse = Udp.udpBuffer[14]; //| (Udp.udpBuffer[15] << 8);//artnetPacket[14] | (artnetPacket[15] << 8);
+                timef = millis();
+                memcpy(&artnetleds1[nbPixelsPerUniverse * (incomingUniverse)*3 + currentframenumber * nbPixels * 3], Udp.udpBuffer + ART_DMX_START, nbPixelsPerUniverse * 3);
+
+                if (incomingUniverse == 0)
                 {
                     //Serial.println("*************new frame**************");
-                    if(sync |sync2){
-                        
-                        
+                    if (sync | sync2)
+                    {
+
                         lostframes++;
-                        
                     }
-                    sync=1;
-                    sync2=0;
+                    sync = 1;
+                    sync2 = 0;
                 }
-                else{
-                    if(incomingUniverse<32)
-                        sync=sync  | (1<<incomingUniverse);
+                else
+                {
+                    if (incomingUniverse < 32)
+                        sync = sync | (1 << incomingUniverse);
                     else
-                        sync2=sync2  | (1<<(incomingUniverse-32));
+                        sync2 = sync2 | (1 << (incomingUniverse - 32));
                 }
             }
-            
         }
-        
+
         frameslues++;
         Udp.flush();
         //currentframenumber=(currentframenumber+1)%2;
@@ -789,7 +730,8 @@ void ArtnetESP32::printPacketHeader()
 
 void ArtnetESP32::printPacketContent()
 {
-    for (uint16_t i = ART_DMX_START ; i < dmxDataLength ; i++){
+    for (uint16_t i = ART_DMX_START; i < dmxDataLength; i++)
+    {
         Serial.print(artnetPacket[i], DEC);
         Serial.print("  ");
     }

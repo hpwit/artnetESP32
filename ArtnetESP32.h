@@ -42,6 +42,7 @@ THE SOFTWARE.
 #endif
 #include <Udp.h>
 // UDP specific
+
 #define ART_NET_PORT 6454
 // Opcodes
 #define ART_POLL 0x2000
@@ -59,6 +60,9 @@ THE SOFTWARE.
 #include "soc/timer_group_reg.h"
 #include "esp_task_wdt.h"
 #include "FS.h"
+#include <lwip/sockets.h>
+#include <lwip/netdb.h>
+#define BUFFER_SIZE 800
 
 //static QueueHandle_t _artnet_queue;
 static TaskHandle_t artnetAfterFrameHandle = 0;
@@ -133,6 +137,7 @@ public:
     uint32_t getsync();
     uint32_t recordStartTime;
     uint32_t recordEndTime;
+    int startuniverse;
     bool firstframe=false;
     bool readNextFrameAndWait(File playingfile);
   bool running=false;
@@ -151,10 +156,166 @@ public:
   void begin(byte mac[], byte ip[]);
    void begin();
     void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses);
+     void begin(uint16_t nbPixels,uint16_t nbPixelsPerUniverses,int starunivers);
   void setBroadcast(byte bc[]);
   uint16_t read();
      uint16_t read2();
-    uint16_t read3();
+   
+uint16_t read3()
+{
+    struct sockaddr_in si_other;
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+
+    //timef=millis();
+    incomingUniverse = 99;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *offset;
+    // bool resetframe=true;
+
+er:
+    timef = millis();
+    offset = artnetleds1 + currentframenumber * decal2;
+
+    while (incomingUniverse != startuniverse)
+    {
+#ifndef ARTNET_NO_TIMEOUT
+                if (millis() - timef > 1000)
+                {
+                    Serial.println("Time out fired");
+                    return 0;
+                }
+#endif
+        //MSG_DONTWAIT
+        if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, 0, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
+        {
+
+            incomingUniverse = offset[14];
+#ifdef ARTNET_DEBUG
+            printf("Universe : %d length:%d \n", incomingUniverse, len);
+#endif
+        }
+    }
+
+    for (int uni =startuniverse+1; uni < nbNeededUniverses+startuniverse; uni++)
+    {
+        offset += decal;
+        while ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, 0, (struct sockaddr *)&si_other, (socklen_t *)&slen)) <= 0)
+        {
+#ifdef ARTNET_DEBUG
+            printf("Universe : %d length:%d expected universer:%d\n", incomingUniverse, len, uni);
+#endif
+#ifndef ARTNET_NO_TIMEOUT
+                if (millis() - timef > 1000)
+                {
+                    Serial.println("Time out fired");
+                    return 0;
+                }
+#endif
+        }
+        incomingUniverse = *(offset + 14);
+        if (incomingUniverse != uni)
+        {
+            lostframes++;
+            // resetframe=false;
+            goto er;
+        }
+    }
+    /* incomingUniverse = *(offset + 14);
+    if (incomingUniverse != nbNeededUniverses-1)
+        {
+            lostframes++;
+            // resetframe=false;
+            goto er;
+        }*/
+    //Udp.flush();
+    currentframenumber = (currentframenumber + 1) % 2;
+    frameslues++;
+    return 1;
+}
+
+uint16_t __readFrame()
+{
+    struct sockaddr_in si_other;
+    int slen = sizeof(si_other), len;
+    long timef = 0;
+
+    //timef=millis();
+    incomingUniverse = 99;
+    uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
+    uint32_t decal2 = nbNeededUniverses * decal;
+    uint8_t *offset;
+    // bool resetframe=true;
+    /*  uint16_t result;
+    result=read3();
+    if(result==1 and artnetAfterFrameHandle)
+        xTaskNotifyGive(artnetAfterFrameHandle);
+    return result;*/
+    while (1)
+    {
+    er:
+#ifndef ARTNET_NO_TIMEOUT
+        timef = millis();
+#endif
+        offset = artnetleds1 + currentframenumber * decal2;
+
+        while (incomingUniverse != startuniverse)
+        {
+#ifndef ARTNET_NO_TIMEOUT
+            if (millis() - timef > 1000)
+            {
+                Serial.println("Time out fired");
+                //return 0;
+            }
+#endif
+            //MSG_DONTWAIT
+            if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, 0, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
+            {
+
+                incomingUniverse = offset[14];
+#ifdef ARTNET_DEBUG
+                printf("Universe : %d length:%d \n", incomingUniverse, len);
+#endif
+            }
+        }
+
+        for (int uni = startuniverse+1; uni < nbNeededUniverses+startuniverse; uni++)
+        {
+            offset += decal;
+            while ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, 0, (struct sockaddr *)&si_other, (socklen_t *)&slen)) <= 0)
+            {
+
+#ifndef ARTNET_NO_TIMEOUT
+                if (millis() - timef > 1000)
+                {
+                    Serial.println("Time out fired");
+                    //return 0;
+                }
+#endif
+            }
+
+            incomingUniverse = *(offset + 14);
+            if (incomingUniverse != uni)
+            {
+                #ifdef ARTNET_DEBUG
+                printf("Universe : %d length:%d expected universer:%d\n", incomingUniverse, len, uni);
+                #endif
+                lostframes++;
+                // resetframe=false;
+                goto er;
+            }
+        }
+        //Udp.flush();
+        currentframenumber = (currentframenumber + 1) % 2;
+        frameslues++;
+        if (artnetAfterFrameHandle)
+            xTaskNotifyGive(artnetAfterFrameHandle);
+    }
+}
+
+
+    uint16_t read4();
     uint16_t readWithoutWaiting();
     uint16_t read2(TaskHandle_t task);
     uint16_t read(TaskHandle_t task);
