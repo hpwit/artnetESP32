@@ -415,7 +415,7 @@ er:
     frameslues++;
     return 1;
 }
-
+/*
 uint16_t ArtnetESP32::readFrame()
 {
     uint16_t result;
@@ -424,7 +424,7 @@ uint16_t ArtnetESP32::readFrame()
         xTaskNotifyGive(artnetAfterFrameHandle);
     return result;
 }
-
+*/
 uint16_t ArtnetESP32::readFrameRecord()
 {
     uint16_t result;
