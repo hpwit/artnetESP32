@@ -50,19 +50,12 @@
 #include <cbuf.h>
 
 class WiFiUDPArtnet: public UDP {
-private:
-    //switch to public instead of private
-    IPAddress multicast_ip;
-    IPAddress remote_ip;
-    uint16_t server_port;
-    uint16_t remote_port;
-    char * tx_buffer;
-    size_t tx_buffer_len;
-    cbuf * rx_buffer;
+
 public:
-    int udp_server; 
+
     WiFiUDPArtnet();
     ~WiFiUDPArtnet();
+     int udp_server; 
     uint8_t begin(IPAddress a, uint16_t p);
     uint8_t begin(uint16_t p);
     uint8_t beginMulticast(IPAddress a, uint16_t p);
@@ -85,6 +78,16 @@ public:
     void flush();
     IPAddress remoteIP();
     uint16_t remotePort();
+
+    private:
+    //switch to public instead of private
+    IPAddress multicast_ip;
+    IPAddress remote_ip;
+    uint16_t server_port;
+    uint16_t remote_port;
+    char * tx_buffer;
+    size_t tx_buffer_len;
+    cbuf * rx_buffer;
 };
 
 
