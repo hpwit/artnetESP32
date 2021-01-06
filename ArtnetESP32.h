@@ -181,15 +181,15 @@ public:
     incomingUniverse = 99;
     uint32_t decal = nbPixelsPerUniverse * 3 + ART_DMX_START;
     uint32_t decal2 = nbNeededUniverses * decal;
-    uint8_t *offset;
+    uint8_t *offset, *offset2;
     // bool resetframe=true;
-
+    offset2 = artnetleds1 + currentframenumber * decal2;
   er:
 
 #ifndef ARTNET_NO_TIMEOUT
     timef = millis();
 #endif
-    offset = artnetleds1 + currentframenumber * decal2;
+    offset = offset2;
 
     while (incomingUniverse != startuniverse)
     {
@@ -201,7 +201,7 @@ public:
       }
 #endif
       //MSG_DONTWAIT
-      if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, 0, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
+      if ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen)) > 0) //1460
       {
 
         incomingUniverse = offset[14];
@@ -210,15 +210,18 @@ public:
 #endif
       }
     }
-
+#ifdef ARTNET_DEBUG
+        printf("Passed\n");
+#endif
     for (int uni = startuniverse + 1; uni < nbNeededUniverses + startuniverse; uni++)
     {
       offset += decal;
-      while ((len = recvfrom(Udp.udp_server, offset, BUFFER_SIZE, 0, (struct sockaddr *)&si_other, (socklen_t *)&slen)) <= 0)
+      //recvfrom(Udp.udp_server, offset, BUFFER_SIZE,MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen) <= 0
+     //recv(Udp.udp_server, offset, BUFFER_SIZE,MSG_DONTWAIT)<=0
+      while ( recvfrom(Udp.udp_server, offset, BUFFER_SIZE,MSG_DONTWAIT, (struct sockaddr *)&si_other, (socklen_t *)&slen) <= 0)
       {
-#ifdef ARTNET_DEBUG
-        printf("Universe : %d length:%d expected universer:%d\n", incomingUniverse, len, uni);
-#endif
+        //incomingUniverse = *(offset + 14);
+
 #ifndef ARTNET_NO_TIMEOUT
         if (millis() - timef > 1000)
         {
@@ -231,6 +234,9 @@ public:
       incomingUniverse = *(offset + 14);
       if (incomingUniverse != uni)
       {
+#ifdef ARTNET_DEBUG
+        printf("Universe : %d length:%d expected universer:%d\n", incomingUniverse, len, uni);
+#endif
         lostframes++;
         // resetframe=false;
         goto er;
